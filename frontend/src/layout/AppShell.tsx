@@ -23,10 +23,9 @@ export interface NavItem {
   label: string;
   icon: ReactNode;
   end?: boolean;
-  roles?: string[];
 }
 
-const ADMIN_NAV: { group: string; items: NavItem[] }[] = [
+const APP_NAV: { group: string; items: NavItem[] }[] = [
   {
     group: '',
     items: [{ to: '/', label: 'Dashboard', icon: <LayoutDashboard size={17} />, end: true }],
@@ -35,7 +34,7 @@ const ADMIN_NAV: { group: string; items: NavItem[] }[] = [
     group: 'Management',
     items: [
       { to: '/projects', label: 'Projects', icon: <FolderKanban size={17} /> },
-      { to: '/employees', label: 'Employees', icon: <Users size={17} /> },
+
       { to: '/documents', label: 'Documents', icon: <FileText size={17} /> },
     ],
   },
@@ -46,36 +45,20 @@ const ADMIN_NAV: { group: string; items: NavItem[] }[] = [
       { to: '/tasks', label: 'Tasks', icon: <ListChecks size={17} /> },
       { to: '/risks', label: 'Risks', icon: <TriangleAlert size={17} /> },
       { to: '/blockers', label: 'Blockers', icon: <CircleSlash size={17} /> },
+      { to: '/report-blocker', label: 'Report Blocker', icon: <CircleSlash size={17} /> },
+      { to: '/assistant', label: 'Project Assistant', icon: <Bot size={17} /> },
     ],
   },
   {
     group: 'System',
     items: [
-      { to: '/ai-settings', label: 'AI Providers', icon: <Cpu size={17} />, roles: ['ADMIN'] },
-      { to: '/audit-logs', label: 'Audit Logs', icon: <ScrollText size={17} />, roles: ['ADMIN'] },
+      { to: '/ai-settings', label: 'AI Providers', icon: <Cpu size={17} /> },
+      { to: '/audit-logs', label: 'Audit Logs', icon: <ScrollText size={17} /> },
     ],
   },
 ];
 
-const EMPLOYEE_NAV: { group: string; items: NavItem[] }[] = [
-  {
-    group: '',
-    items: [{ to: '/', label: 'Dashboard', icon: <LayoutDashboard size={17} />, end: true }],
-  },
-  {
-    group: 'My Work',
-    items: [
-      { to: '/projects', label: 'My Projects', icon: <FolderKanban size={17} /> },
-      { to: '/tasks', label: 'My Tasks', icon: <ListChecks size={17} /> },
-      { to: '/risks', label: 'Risks', icon: <TriangleAlert size={17} /> },
-      { to: '/blockers', label: 'Blockers', icon: <CircleSlash size={17} /> },
-      { to: '/insights', label: 'AI Insights', icon: <Sparkles size={17} /> },
-      { to: '/report-blocker', label: 'Report Blocker', icon: <CircleSlash size={17} /> },
-      { to: '/documents', label: 'Documents', icon: <FileText size={17} /> },
-      { to: '/assistant', label: 'Project Assistant', icon: <Bot size={17} /> },
-    ],
-  },
-];
+const nav = APP_NAV;
 
 export function AppShell({
   title,
@@ -89,8 +72,8 @@ export function AppShell({
   children: ReactNode;
 }) {
   const { user, logout } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
-  const groups = isAdmin ? ADMIN_NAV : EMPLOYEE_NAV;
+  const isAdmin = false;
+  const groups = nav;
 
   return (
     <div className="shell">
@@ -106,10 +89,10 @@ export function AppShell({
         </div>
 
         <nav className="nav">
-          {groups.map((g, i) => (
+          {groups.map((g: any, i: number) => (
             <div key={i}>
               {g.group && <div className="nav-group-label">{g.group}</div>}
-              {g.items.map((item) => (
+              {g.items.map((item: NavItem) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -131,7 +114,7 @@ export function AppShell({
               <div className="uname" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {user?.name}
               </div>
-              <div className="urole">{user?.role === 'ADMIN' ? 'Administrator' : 'Employee'}</div>
+              <div className="urole">{false ? 'Administrator' : 'Employee'}</div>
             </div>
             <button className="btn btn-icon" onClick={() => logout()} title="Logout" style={{ marginLeft: 'auto' }}>
               <LogOut size={16} />

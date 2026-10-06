@@ -12,11 +12,11 @@ from app.services.documents import (
     DocumentUploadError,
     create_document_record,
     delete_document,
-    process_document,
-    reprocess_document,
+    process_and_analyze,
     store_original,
     validate_upload,
 )
+from app.services.milestone3.validation import validate_upload as m3_validate_upload
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -53,11 +53,8 @@ def list_documents(
     db: Session = Depends(get_db),
 ):
     q = db.query(ProjectDocument)
-    if user.role_code != "ADMIN":
-        ids = [m.project_id for m in user.memberships]
-        q = q.filter(ProjectDocument.project_id.in_(ids or [-1]))
     if project_id is not None:
-        get_accessible_project(project_id, user, db)  # permission guard
+        get_accessible_project(project_id, user, db)  # existence guard
         q = q.filter(ProjectDocument.project_id == project_id)
     if file_type:
         q = q.filter(ProjectDocument.file_type == file_type.lower())
@@ -81,6 +78,28 @@ async def upload_document(
     get_accessible_project(project_id, user, db)
 
     data = await file.read()
+    # Milestone 3 validation runs first and is strictly additive: a file that
+    # fails any M3 rule is rejected before a single byte reaches the uploads
+    # directory or the documents table.
+    m3_report = m3_validate_upload(
+        file.filename or "",
+        data,
+        content_type=file.content_type or "",
+    )
+    if not m3_report.ok:
+        log_event(db, user_id=user.id, user_email=user.email, action="document_validation_failed",
+                  resource_type="document", resource_id="", project_id=project_id,
+                  detail=f"{file.filename}: {m3_report.detail}", request=request)
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "File failed validation checks.",
+                "detail": m3_report.detail,
+                "checks": m3_report.checks,
+                "warnings": m3_report.warnings,
+            },
+        )
+
     try:
         file_type, mime = validate_upload(data, file.filename or "")
     except HTTPException as exc:
@@ -97,7 +116,10 @@ async def upload_document(
               resource_type="document", resource_id=str(doc.id), project_id=project_id,
               detail=f"{doc.original_name}", request=request)
 
-    background_tasks.add_task(process_document, db, doc.id)
+    # Ingestion runs first, then the whole project intelligence pipeline runs
+    # automatically against the freshly indexed chunks. The user does not have to
+    # press Analyse / Generate / Calculate for any of it.
+    background_tasks.add_task(process_and_analyze, db, doc.id, created_by=user.id)
     db.refresh(doc)
     return _doc_out(db, doc)
 
@@ -142,22 +164,24 @@ def download_document(document_id: int, request: Request, user: User = Depends(g
 @router.post("/{document_id}/reprocess", response_model=DocumentOut)
 def reprocess(document_id: int, background_tasks: BackgroundTasks, request: Request = None,
               user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Reprocess: recompute chunks, embeddings, vectors for an existing document."""
+    """Recompute chunks, embeddings and vectors, then re-run the project pipeline.
+
+    Idempotent: the orchestrator clears the previous AI-derived rows first and
+    generated documents are upserted, so a reprocess never duplicates records.
+    """
     doc = get_accessible_document(document_id, user, db)
-    if user.role_code != "ADMIN":
-        raise HTTPException(status_code=403, detail="Only administrators can reprocess documents.")
     log_event(db, user_id=user.id, user_email=user.email, action="document_reprocess_requested",
               resource_type="document", resource_id=str(doc.id), project_id=doc.project_id,
               detail=doc.original_name, request=request)
-    background_tasks.add_task(reprocess_document, db, document_id)
+    background_tasks.add_task(
+        process_and_analyze, db, document_id, created_by=user.id, reprocess=True
+    )
     return _doc_out(db, doc)
 
 
 @router.delete("/{document_id}")
 def delete(document_id: int, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     doc = get_accessible_document(document_id, user, db)
-    if user.role_code != "ADMIN":
-        raise HTTPException(status_code=403, detail="Only administrators can delete documents.")
     delete_document(
         db,
         document_id,

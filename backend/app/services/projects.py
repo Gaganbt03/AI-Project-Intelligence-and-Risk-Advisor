@@ -88,7 +88,6 @@ def user_out(db: Session, user: User) -> UserOut:
         id=user.id,
         email=user.email,
         name=user.name,
-        role=user.role_code,
         is_active=user.is_active,
         created_at=user.created_at,
         last_login=user.last_login,
@@ -97,12 +96,12 @@ def user_out(db: Session, user: User) -> UserOut:
 
 
 def list_projects_for_user(db: Session, user: User) -> list[Project]:
-    if user.role_code == "ADMIN":
-        projects = db.query(Project).order_by(Project.created_at.desc()).all()
-    else:
-        ids = [m.project_id for m in user.memberships]
-        projects = []
-        if ids:
-            projects = db.query(Project).filter(Project.id.in_(ids)).order_by(Project.created_at.desc()).all()
+    """Return every project.
+
+    The previous implementation returned all projects for administrators and
+    only membership-derived projects for employees. With a single user type every
+    authenticated user sees the full project list, so all existing projects stay
+    reachable. Membership rows are preserved untouched in ``project_members``.
+    """
     # Hide archived from default list? No - archiving is a status; still visible but marked.
-    return projects
+    return db.query(Project).order_by(Project.created_at.desc()).all()

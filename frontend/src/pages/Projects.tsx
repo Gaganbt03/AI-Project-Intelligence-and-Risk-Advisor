@@ -15,7 +15,7 @@ const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 export default function Projects() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = true;
   const [projects, setProjects] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,7 +125,7 @@ export default function Projects() {
           icon={<FolderKanban size={26} />}
           title={isAdmin ? 'No projects yet' : 'No projects assigned'}
           description={isAdmin
-            ? 'Create your first project to start building your project intelligence workspace. You can add team members and upload documents afterwards.'
+            ? 'Create your first project to start building your project intelligence workspace. You can upload documents afterwards.'
             : 'Projects assigned to you by an administrator will appear here.'}
           action={isAdmin ? <button className="btn btn-primary" onClick={openCreate}><Plus size={16} /> Create Project</button> : undefined}
         />
@@ -148,7 +148,7 @@ export default function Projects() {
               </div>
               <div className="row wrap gap-sm">
                 <SeverityBadge value={p.priority} />
-                <Badge tone="neutral" plain><Users size={11} /> {p.member_count} members</Badge>
+
                 <Badge tone="neutral" plain><FileText size={11} /> {p.document_count} docs</Badge>
               </div>
               <div className="tiny dim">
@@ -213,9 +213,9 @@ export default function Projects() {
             </div>
 
             <div className="field">
-              <label>Team Members</label>
+              <label>Assigned To</label>
               {users.length === 0 ? (
-                <div className="tiny dim">No employees exist yet — you can assign team members later from the Employees page.</div>
+                <div className="tiny dim">No users exist yet — you can assign people later from a project.</div>
               ) : (
                 <div className="chip-row">
                   {users.map((u) => (

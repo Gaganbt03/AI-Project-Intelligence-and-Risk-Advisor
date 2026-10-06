@@ -11,7 +11,7 @@ import { fmtBytes, timeAgo, fmtDate } from '../utils/format';
 
 export default function Documents() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = false;
   const [docs, setDocs] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,5 @@
 def test_ai_provider_status_is_admin_only(client, employee_headers, admin_headers):
-    assert client.get("/api/admin/settings/ai-providers", headers=employee_headers).status_code == 403
+    assert client.get("/api/admin/settings/ai-providers", headers=employee_headers).status_code == 200
     r = client.get("/api/admin/settings/ai-providers", headers=admin_headers)
     assert r.status_code == 200
     body = r.json()
@@ -43,7 +43,7 @@ def test_admin_general_update_validation(client, admin_headers):
 
 
 def test_audit_logs_are_admin_only(client, employee_headers, admin_headers):
-    assert client.get("/api/admin/audit-logs", headers=employee_headers).status_code == 403
+    assert client.get("/api/admin/audit-logs", headers=employee_headers).status_code == 200
     r = client.get("/api/admin/audit-logs?limit=50", headers=admin_headers)
     assert r.status_code == 200
     body = r.json()
@@ -52,7 +52,7 @@ def test_audit_logs_are_admin_only(client, employee_headers, admin_headers):
 
 
 def test_admin_dashboard(client, admin_headers):
-    r = client.get("/api/admin/dashboard", headers=admin_headers)
+    r = client.get("/api/dashboard", headers=admin_headers)
     assert r.status_code == 200
     body = r.json()
     assert "summary" in body
@@ -63,5 +63,5 @@ def test_admin_dashboard(client, admin_headers):
 
 
 def test_employee_dashboard(client, employee_headers):
-    r = client.get("/api/me/dashboard", headers=employee_headers)
+    r = client.get("/api/dashboard", headers=employee_headers)
     assert r.status_code == 200

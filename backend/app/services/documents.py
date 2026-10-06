@@ -256,6 +256,53 @@ def reprocess_document(db: Session, document_id: int, *, audit_request=None) -> 
     return process_document(db, document_id, audit_request=audit_request)
 
 
+def process_and_analyze(
+    db: Session,
+    document_id: int,
+    *,
+    audit_request=None,
+    created_by: int | None = None,
+    run_analysis: bool = True,
+    reprocess: bool = False,
+) -> ProjectDocument:
+    """Ingest one document, then automatically analyse the whole project.
+
+    This is the single entry point the upload and reprocess routes schedule. It
+    keeps ingestion and analysis in order: the agents, the deterministic health
+    score and the generated documents all read from the chunks and vectors that
+    ingestion just wrote, so they are grounded in the new upload.
+
+    The assistant is deliberately *not* touched here. Its RAG context is warm
+    once the document is indexed; a question, conversation or message is only
+    ever produced by an explicit user request through the assistant endpoints.
+    """
+    doc = reprocess_document(db, document_id, audit_request=audit_request) if reprocess else (
+        process_document(db, document_id, audit_request=audit_request)
+    )
+    if not run_analysis or doc.status != "Processed":
+        return doc
+
+    from app.services.pipeline import run_project_pipeline
+
+    try:
+        run_project_pipeline(
+            db,
+            doc.project_id,
+            document_id=doc.id,
+            created_by=created_by if created_by is not None else doc.uploaded_by,
+            trigger="document_reprocess" if reprocess else "document_upload",
+            audit_request=audit_request,
+        )
+    except Exception:  # noqa: BLE001 - the document itself is already processed
+        logger.exception(
+            "Automatic analysis failed for document %s (project %s). "
+            "The document stays processed and can be re-analysed later.",
+            document_id, doc.project_id,
+        )
+        db.rollback()
+    return doc
+
+
 def delete_document(
     db: Session,
     document_id: int,

@@ -9,7 +9,7 @@ import SetupAdmin from './pages/auth/SetupAdmin';
 import AdminDashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
-import Employees from './pages/Employees';
+
 import Documents from './pages/Documents';
 import Insights from './pages/Insights';
 import Tasks from './pages/Tasks';
@@ -21,11 +21,11 @@ import Profile from './pages/Profile';
 import ReportBlocker from './pages/ReportBlocker';
 import Assistant from './pages/Assistant';
 
-function Protected({ children, roles }: { children: ReactNode; roles?: string[] }) {
+function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner label="Checking session…" />;
   if (!user) return <Navigate to="/auth/login" replace />;
-  if (roles && !roles.includes(user.role)) {
+  if (false) {
     return <Navigate to="/" replace />;
   }
   return <>{children}</>;
@@ -65,9 +65,9 @@ export default function App() {
         <Route path="/blockers" element={<Protected><BlockersPage /></Protected>} />
         <Route path="/report-blocker" element={<Protected><ReportBlocker /></Protected>} />
         <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
-        <Route path="/employees" element={<Protected roles={['ADMIN']}><Employees /></Protected>} />
-        <Route path="/ai-settings" element={<Protected roles={['ADMIN']}><AiSettings /></Protected>} />
-        <Route path="/audit-logs" element={<Protected roles={['ADMIN']}><AuditLogs /></Protected>} />
+
+        <Route path="/ai-settings" element={<Protected ><AiSettings /></Protected>} />
+        <Route path="/audit-logs" element={<Protected ><AuditLogs /></Protected>} />
         <Route path="/profile" element={<Protected><Profile /></Protected>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

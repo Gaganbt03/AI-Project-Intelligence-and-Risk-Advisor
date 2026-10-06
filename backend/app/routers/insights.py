@@ -59,8 +59,6 @@ def project_health(project_id: int, user: User = Depends(get_current_user), db: 
 @router.post("")
 def full_analysis(project_id: int, request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Run Project Intelligence Analysis: all five agents over the project knowledge base."""
-    if user.role_code != "ADMIN":
-        raise HTTPException(status_code=403, detail="Only administrators can run project analysis.")
     project = get_accessible_project(project_id, user, db)
     result = analyze_project(db, project_id, created_by=user.id, audit_request=request)
     return result

@@ -17,7 +17,6 @@ def test_login_success_and_me(client, admin_headers):
     body = r.json()
     assert body["access_token"]
     assert body["user"]["email"] == "admin@example.com"
-    assert body["user"]["role"] == "ADMIN"
 
     me = client.get("/api/auth/me", headers=admin_headers)
     assert me.status_code == 200

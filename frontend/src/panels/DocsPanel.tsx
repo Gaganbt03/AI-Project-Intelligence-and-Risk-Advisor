@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FileText, Download, Eye, RefreshCw, Trash2, Search } from 'lucide-react';
-import { api, downloadWithAuth } from '../api/client';
+import { FileText, Download, Eye, Loader2, RefreshCw, ShieldCheck, Trash2, Search } from 'lucide-react';
+import { api, currentStageLabel, downloadWithAuth, type AnalysisStatus } from '../api/client';
 import { DocumentUploader } from '../components/DocumentUploader';
 import { EmptyState } from '../components/EmptyState';
 import { Badge, statusTone } from '../components/Badge';
@@ -13,6 +13,8 @@ export function DocsPanel({ projectId, compact }: { projectId: number; compact?:
   const [docs, setDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<AnalysisStatus | null>(null);
+  const [rerunning, setRerunning] = useState(false);
   const { user } = useAuth();
   const toast = useToast();
 
@@ -27,7 +29,29 @@ export function DocsPanel({ projectId, compact }: { projectId: number; compact?:
     }
   }, [projectId, toast]);
 
+  const loadAnalysis = useCallback(async () => {
+    try {
+      setAnalysis(await api.projectAnalysisStatus(projectId));
+    } catch {
+      setAnalysis(null);
+    }
+  }, [projectId]);
+
+  const rerun = async () => {
+    setRerunning(true);
+    try {
+      setAnalysis(await api.runProjectAnalysis(projectId));
+      await load();
+      toast.success('Analysis re-run. Existing records were replaced, not duplicated.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not re-run the analysis.');
+    } finally {
+      setRerunning(false);
+    }
+  };
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadAnalysis(); }, [loadAnalysis]);
 
   const doDelete = async (id: number, name: string) => {
     if (!window.confirm(`Delete "${name}" permanently? This also removes its vectors.`)) return;
@@ -64,6 +88,58 @@ export function DocsPanel({ projectId, compact }: { projectId: number; compact?:
   return (
     <div className="col">
       <DocumentUploader projectId={projectId} onUploaded={load} />
+
+      {analysis && (
+        <div className="card card-flat row-between wrap col gap-sm" style={{ gap: 10 }}>
+          <div className="row wrap gap-sm">
+            <span className="eyebrow">Last automatic analysis</span>
+            {analysis.status === 'Running' && (
+              <span className="row gap-sm tiny"><Loader2 size={13} className="spin" /> {currentStageLabel(analysis)}</span>
+            )}
+            {analysis.status === 'Completed' && (
+              <Badge tone="ok" plain>Completed</Badge>
+            )}
+            {analysis.status === 'CompletedWithWarnings' && (
+              <Badge tone="warn" plain>Completed with warnings</Badge>
+            )}
+            {analysis.status === 'Failed' && (
+              <Badge tone="err" plain>Failed</Badge>
+            )}
+            {analysis.started_at && (
+              <span className="tiny dim">{timeAgo(analysis.started_at)}</span>
+            )}
+          </div>
+          <div className="row wrap gap-sm tiny dim">
+            <span>{analysis.counts.documents_processed ?? 0} document(s) analysed</span>
+            <span>{analysis.counts.risks ?? 0} risk(s)</span>
+            <span>{analysis.counts.tasks ?? 0} task(s)</span>
+            <span>{analysis.counts.blockers ?? 0} blocker(s)</span>
+            {analysis.health?.overall_score != null && (
+              <span>Health {Math.round(analysis.health.overall_score)}/100</span>
+            )}
+          </div>
+          <div className="row wrap gap-sm tiny dim">
+            <span>
+              Project Due Date: <b className="cell-strong">{analysis.due_date?.effective_date || 'Not specified'}</b>
+            </span>
+            {analysis.assistant_ready && (
+              <span className="row gap-sm" style={{ color: 'var(--emerald)' }}>
+                <ShieldCheck size={12} /> Project assistant is ready — it only answers when you ask.
+              </span>
+            )}
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={rerun}
+              disabled={rerunning}
+              title="Re-run the automatic analysis now"
+            >
+              {rerunning ? <Loader2 size={14} className="spin" /> : <RefreshCw size={14} />}
+              Re-run analysis
+            </button>
+          </div>
+          {analysis.error && <div className="tiny" style={{ color: 'var(--err)' }}>{analysis.error}</div>}
+        </div>
+      )}
 
       <div className="panel">
         <div className="panel-head">
@@ -125,7 +201,7 @@ export function DocsPanel({ projectId, compact }: { projectId: number; compact?:
                       <div className="cell-actions">
                         <button className="btn btn-icon" title="View" onClick={() => openPreview(d.id)}><Eye size={15} /></button>
                         <button className="btn btn-icon" title="Download original" onClick={() => downloadWithAuth(api.downloadUrl(d.id), d.original_name)}><Download size={15} /></button>
-                        {user?.role === 'ADMIN' && (
+                        {"ADMIN" === 'ADMIN' && (
                           <>
                             <button className="btn btn-icon" title="Reprocess" onClick={() => doReprocess(d.id)}><RefreshCw size={15} /></button>
                             <button className="btn btn-icon" title="Delete" style={{ color: 'var(--red)' }} onClick={() => doDelete(d.id, d.original_name)}><Trash2 size={15} /></button>

@@ -3,52 +3,57 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Role, User, utcnow
+from app.models import User, utcnow
 from app.schemas import ApiResponse, ChangePasswordRequest, LoginRequest, LoginResponse, SetupAdminRequest, UserSummary
 from app.services.audit import log_event
-from app.services.bootstrap import ensure_roles
+from app.services.bootstrap import default_role_id, ensure_roles
 from app.services.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _summary(user: User) -> UserSummary:
-    return UserSummary(id=user.id, email=user.email, name=user.name, role=user.role_code, is_active=user.is_active)
+    return UserSummary(id=user.id, email=user.email, name=user.name, is_active=user.is_active)
 
 
 def _issue_token(db: Session, user: User, request: Request) -> LoginResponse:
     user.last_login = utcnow()
     db.commit()
     log_event(db, user_id=user.id, user_email=user.email, action="login", detail="User login", request=request)
-    token = create_access_token(user.id, user.role_code)
+    token = create_access_token(user.id)
     return LoginResponse(access_token=token, user=_summary(user))
 
 
 @router.get("/status")
 def auth_status(db: Session = Depends(get_db)):
-    """Indicates whether the first administrator still needs to be created."""
+    """Indicates whether the very first account still needs to be created."""
     needs_setup = db.query(User).count() == 0
     return {"needs_setup": needs_setup}
 
 
 @router.post("/setup-admin", status_code=status.HTTP_201_CREATED)
 def setup_admin(payload: SetupAdminRequest, request: Request, db: Session = Depends(get_db)):
-    """Secure first-admin creation. Only valid while there are zero users."""
+    """Secure first-account creation. Only valid while there are zero users.
+
+    The endpoint path is retained for backward compatibility with the existing
+    frontend and any saved clients; it creates an ordinary user and assigns no
+    privileges. The zero-user guard means it can never become an open
+    self-registration endpoint.
+    """
     if db.query(User).count() > 0:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Setup already completed.")
     ensure_roles(db)
-    role = db.query(Role).filter(Role.code == "ADMIN").first()
     user = User(
         email=payload.email.lower().strip(),
         name=payload.name.strip(),
         password_hash=hash_password(payload.password),
-        role_id=role.id,
+        role_id=default_role_id(db),
         is_active=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    log_event(db, user_id=user.id, user_email=user.email, action="admin_created", detail="First administrator created", request=request)
+    log_event(db, user_id=user.id, user_email=user.email, action="user_created", detail="First account created", request=request)
     return _issue_token(db, user, request)
 
 

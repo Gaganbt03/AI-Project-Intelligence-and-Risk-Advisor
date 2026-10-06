@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database import get_db
-from app.deps import require_admin
+from app.deps import get_current_user
 from app.models import SystemSetting, User
 from app.services.ai.providers import build_provider, get_breaker, get_provider_manager, mask_key
 from app.services.embeddings import get_embedding_provider
@@ -35,7 +35,7 @@ def get_general_settings():
 
 
 @admin_router.get("/ai-providers")
-def provider_status(user: User = Depends(require_admin)):
+def provider_status(user: User = Depends(get_current_user)):
     """Live status of the ordered provider chain + the embedding provider.
 
     API keys are never returned: only whether one is set and a fixed redaction.
@@ -57,7 +57,7 @@ def provider_status(user: User = Depends(require_admin)):
 
 
 @admin_router.post("/ai-providers/{provider_key}/test")
-def test_provider(provider_key: str, user: User = Depends(require_admin)):
+def test_provider(provider_key: str, user: User = Depends(get_current_user)):
     """Test Connection for one chain slot: ollama | groq | gemini | external_1..3.
 
     Clears that provider's circuit breaker first so the button always performs
@@ -94,7 +94,7 @@ def test_provider(provider_key: str, user: User = Depends(require_admin)):
 
 
 @admin_router.get("/general")
-def admin_get_general(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def admin_get_general(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     settings = get_settings()
     return {
         "chunk_size": _db_int_or_default("CHUNK_SIZE", settings.CHUNK_SIZE, db),
@@ -110,7 +110,7 @@ def admin_get_general(user: User = Depends(require_admin), db: Session = Depends
 
 
 @admin_router.put("/general")
-def admin_update_general(payload: GeneralSettings, user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def admin_update_general(payload: GeneralSettings, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     values = {
         "CHUNK_SIZE": payload.chunk_size,
         "CHUNK_OVERLAP": payload.chunk_overlap,

@@ -37,7 +37,6 @@ class UserSummary(BaseModel):
     id: int
     email: str
     name: str
-    role: str = ""
     is_active: bool = True
 
 
@@ -48,6 +47,11 @@ class LoginResponse(BaseModel):
 
 
 class SetupAdminRequest(BaseModel):
+    """First-account creation payload.
+
+    The request name is retained for wire compatibility; it carries no role.
+    """
+
     name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
@@ -60,7 +64,6 @@ class UserOut(BaseModel):
     id: int
     email: str
     name: str
-    role: str = ""
     is_active: bool
     created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
@@ -71,7 +74,6 @@ class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
-    role: str = Field(pattern="^(ADMIN|EMPLOYEE)$")
     project_ids: list[int] = []
 
 
@@ -97,7 +99,6 @@ class ProjectMemberOut(BaseModel):
     id: int
     name: str
     email: str
-    role: str = ""
     assigned_at: Optional[datetime] = None
 
 

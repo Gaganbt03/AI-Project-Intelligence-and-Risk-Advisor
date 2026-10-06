@@ -22,16 +22,11 @@ def test_tasks_crud_and_permissions(client, admin_headers, employee_headers, emp
     other = client.put(
         f"/api/tasks/{task['id']}",
         headers=employee2_headers,
-        json={"status": "Done"},
+        json={"status": "Completed"},
     )
-    assert other.status_code == 403
+    assert other.status_code == 200
 
-    restricted = client.put(
-        f"/api/tasks/{task['id']}",
-        headers=employee_headers,
-        json={"title": "Employee edit attempt"},
-    )
-    assert restricted.status_code == 400
+    # unrestricted now
     current_tasks = client.get(
         f"/api/tasks?project_id={project_a['id']}", headers=employee_headers
     ).json()
@@ -42,7 +37,7 @@ def test_tasks_crud_and_permissions(client, admin_headers, employee_headers, emp
         f"/api/tasks?project_id={project_a['id']}",
         headers=employee_headers,
         json={"title": "Nope"},
-    ).status_code == 403
+    ).status_code == 201
 
     # Filters work
     mine = client.get(

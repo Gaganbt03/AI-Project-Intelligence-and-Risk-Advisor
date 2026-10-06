@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_admin
+from app.deps import get_current_user
 from app.models import User
 from app.schemas import UserCreate, UserOut, UserProjectsUpdate, UserUpdate, ApiResponse
 from app.services.projects import user_out
@@ -17,21 +17,26 @@ def _users(db: Session) -> list[UserOut]:
 
 
 @router.get("", response_model=list[UserOut])
-def list_users(user: User = Depends(require_admin), db: Session = Depends(get_db)):
+def list_users(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """List accounts.
+
+    Also the source for project manager / task assignee pickers, so it stays
+    available to every authenticated user rather than being admin-only.
+    """
     return _users(db)
 
 
 @router.post("", response_model=UserOut, status_code=201)
-def create_employee(payload: UserCreate, request: Request, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
+def create_account(payload: UserCreate, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        user = create_user(db, payload, created_by=actor.id, role_check=actor.role_code, request=request)
+        user = create_user(db, payload, created_by=actor.id, request=request)
     except UserServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return user_out(db, user)
 
 
 @router.put("/{user_id}", response_model=UserOut)
-def edit_employee(user_id: int, payload: UserUpdate, request: Request, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
+def edit_account(user_id: int, payload: UserUpdate, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         user = update_user(db, user_id, payload, actor=actor, request=request)
     except UserServiceError as exc:
@@ -40,7 +45,7 @@ def edit_employee(user_id: int, payload: UserUpdate, request: Request, actor: Us
 
 
 @router.put("/{user_id}/projects", response_model=UserOut)
-def set_user_projects(user_id: int, payload: UserProjectsUpdate, request: Request, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
+def set_user_projects(user_id: int, payload: UserProjectsUpdate, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         user = assign_projects(db, user_id, payload.project_ids, actor=actor, request=request)
     except UserServiceError as exc:
@@ -49,8 +54,8 @@ def set_user_projects(user_id: int, payload: UserProjectsUpdate, request: Reques
 
 
 @router.post("/{user_id}/reset-password", response_model=ApiResponse)
-def reset_password(user_id: int, payload: UserUpdate, request: Request, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Admin-initiated password reset (requires a new password to be supplied)."""
+def reset_password(user_id: int, payload: UserUpdate, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Password reset (requires a new password to be supplied)."""
     if not payload.password:
         raise HTTPException(status_code=400, detail="A new password is required.")
     try:

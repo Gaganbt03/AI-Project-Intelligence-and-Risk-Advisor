@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, FolderKanban, FileText, Users, ListChecks, TriangleAlert, CircleSlash,
-  Sparkles, Bot, ArrowRight, Calendar,
+  ArrowLeft, FolderKanban, FileText, ListChecks, TriangleAlert, CircleSlash,
+  Sparkles, Bot, ArrowRight, Calendar, Activity, BookOpen,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { AppShell } from '../layout/AppShell';
@@ -17,11 +17,14 @@ import { RisksPanel } from '../panels/RisksPanel';
 import { BlockersPanel } from '../panels/BlockersPanel';
 import { InsightsPanel } from '../panels/InsightsPanel';
 import { AssistantPanel } from '../panels/AssistantPanel';
+import { HealthPanel } from '../panels/HealthPanel';
+import { GeneratedDocsPanel } from '../panels/GeneratedDocsPanel';
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: <FolderKanban size={15} /> },
+  { key: 'health', label: 'Health', icon: <Activity size={15} /> },
   { key: 'documents', label: 'Documents', icon: <FileText size={15} /> },
-  { key: 'team', label: 'Team', icon: <Users size={15} /> },
+  { key: 'generated', label: 'Generated Docs', icon: <BookOpen size={15} /> },
   { key: 'tasks', label: 'Tasks', icon: <ListChecks size={15} /> },
   { key: 'risks', label: 'Risks', icon: <TriangleAlert size={15} /> },
   { key: 'blockers', label: 'Blockers', icon: <CircleSlash size={15} /> },
@@ -33,7 +36,7 @@ export default function ProjectDetail() {
   const { id } = useParams();
   const pid = Number(id);
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = true;
   const [project, setProject] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [tab, setTab] = useState('overview');
@@ -57,7 +60,8 @@ export default function ProjectDetail() {
 
   useEffect(() => { load(); }, [load]);
 
-  const teamUsers = useMemo(
+  // Assignee options for task/blocker pickers. This is record data, not a team view.
+  const assignees = useMemo(
     () => allUsers.filter((u) => (project?.member_ids || []).includes(u.id)),
     [allUsers, project],
   );
@@ -90,8 +94,7 @@ export default function ProjectDetail() {
           <div className="row wrap gap-sm">
             <Badge tone={statusTone(project.status)}>{project.status}</Badge>
             <SeverityBadge value={project.priority} />
-            <Badge tone="neutral" plain><Users size={11} /> {project.member_count} members</Badge>
-          </div>
+            </div>
         </div>
       </div>
 
@@ -100,35 +103,12 @@ export default function ProjectDetail() {
         <div className="panel-body grid grid-3" style={{ gap: 10 }}>
           <QuickLink icon={<FileText size={16} />} text="Upload documents" onClick={() => setTab('documents')} />
           <QuickLink icon={<ListChecks size={16} />} text="Manage tasks" onClick={() => setTab('tasks')} />
+          <QuickLink icon={<Activity size={16} />} text="Check project health" onClick={() => setTab('health')} />
+          <QuickLink icon={<BookOpen size={16} />} text="Generate documentation" onClick={() => setTab('generated')} />
           <QuickLink icon={<Sparkles size={16} />} text="Run AI analysis" onClick={() => setTab('insights')} />
           <QuickLink icon={<Bot size={16} />} text="Ask the assistant" onClick={() => setTab('assistant')} />
           <QuickLink icon={<TriangleAlert size={16} />} text="Review risks" onClick={() => setTab('risks')} />
-          <QuickLink icon={<Users size={16} />} text="View team" onClick={() => setTab('team')} />
         </div>
-      </div>
-    </div>
-  );
-
-  const team = (
-    <div className="panel">
-      <div className="panel-head"><h3><Users size={16} /> Project Team</h3><span className="ph-sub">{project.member_count} members</span></div>
-      <div className="panel-body">
-        {teamUsers.length === 0 ? (
-          <div className="tiny dim">No members assigned yet. An administrator can assign employees to this project.</div>
-        ) : (
-          <div className="grid grid-auto">
-            {teamUsers.map((u) => (
-              <div key={u.id} className="card card-flat row gap-sm" style={{ padding: 13 }}>
-                <div className="avatar">{initials(u.name)}</div>
-                <div className="col gap-sm" style={{ gap: 2 }}>
-                  <b className="small">{u.name}</b>
-                  <span className="tiny dim">{u.email}</span>
-                  <Badge tone={u.role === 'ADMIN' ? 'magenta' : 'violet'} plain>{u.role}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -168,11 +148,12 @@ export default function ProjectDetail() {
       </div>
 
       {tab === 'overview' && overview}
+      {tab === 'health' && <HealthPanel projectId={pid} />}
       {tab === 'documents' && <DocsPanel projectId={pid} />}
-      {tab === 'team' && team}
-      {tab === 'tasks' && <TasksPanel projectId={pid} users={teamUsers.map((u) => ({ id: u.id, name: u.name }))} />}
+      {tab === 'generated' && <GeneratedDocsPanel projectId={pid} />}
+      {tab === 'tasks' && <TasksPanel projectId={pid} users={assignees.map((u) => ({ id: u.id, name: u.name }))} />}
       {tab === 'risks' && <RisksPanel projectId={pid} />}
-      {tab === 'blockers' && <BlockersPanel projectId={pid} employees={teamUsers.map((u) => ({ id: u.id, name: u.name }))} />}
+      {tab === 'blockers' && <BlockersPanel projectId={pid} employees={assignees.map((u) => ({ id: u.id, name: u.name }))} />}
       {tab === 'insights' && <InsightsPanel projectId={pid} onRunDone={refreshInsights} />}
       {tab === 'assistant' && <AssistantPanel projectId={pid} />}
     </AppShell>
@@ -197,9 +178,4 @@ function EmptyGhost({ onBack }: { onBack: () => void }) {
       <button className="btn btn-secondary" onClick={onBack}>Back</button>
     </div>
   );
-}
-
-function initials(name?: string): string {
-  if (!name) return '?';
-  return name.split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('') || '?';
 }

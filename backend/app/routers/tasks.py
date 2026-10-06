@@ -82,8 +82,6 @@ def create_task(
     db: Session = Depends(get_db),
 ):
     get_accessible_project(project_id, user, db)
-    if user.role_code != "ADMIN":
-        raise HTTPException(status_code=403, detail="Only administrators can create manual tasks.")
     title = (payload.get("title") or "").strip()[:255]
     if not title:
         raise HTTPException(status_code=400, detail="Task title is required.")
@@ -131,18 +129,18 @@ def update_task(task_id: int, payload: dict, user: User = Depends(get_current_us
         raise HTTPException(status_code=404, detail="Task not found.")
     get_accessible_project(task.project_id, user, db)
 
-    is_admin = user.role_code == "ADMIN"
-    is_assignee = task.assigned_to == user.id
-    if not is_admin and not is_assignee:
-        raise HTTPException(status_code=403, detail="Only the assignee or an administrator can update this task.")
-    if not is_admin and any(field != "status" for field in payload):
-        raise HTTPException(status_code=400, detail="Employees may only update task status.")
-
-    allowed_fields = (
-        {"status", "title", "description", "priority", "due_date", "source_ref", "source_document_id"}
-        if is_admin
-        else {"status"}
-    )
+    # With a single user type every authenticated user may edit any task field.
+    # The assignee/staffing restriction that previously applied to non-admins
+    # was purely a role distinction and has been removed.
+    allowed_fields = {
+        "status",
+        "title",
+        "description",
+        "priority",
+        "due_date",
+        "source_ref",
+        "source_document_id",
+    }
     for field in allowed_fields:
         if field in payload:
             value = payload[field]
@@ -160,7 +158,7 @@ def update_task(task_id: int, payload: dict, user: User = Depends(get_current_us
                 if not source:
                     raise HTTPException(status_code=400, detail="Source document does not belong to this project.")
             setattr(task, field, value)
-    if is_admin and "assigned_to" in payload:
+    if "assigned_to" in payload:
         _validate_assignee(db, task.project_id, payload["assigned_to"])
         task.assigned_to = payload["assigned_to"]
     db.commit()

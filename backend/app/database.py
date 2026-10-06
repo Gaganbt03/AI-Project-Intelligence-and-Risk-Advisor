@@ -46,5 +46,8 @@ def get_db():
 
 def init_db() -> None:
     from app import models  # noqa: F401  (ensure models are registered)
+    from app import models_m3  # noqa: F401  (milestone 3 models)
 
+    # `create_all` issues CREATE TABLE IF NOT EXISTS, so this is additive:
+    # existing Milestone 1/2 tables and every row in them are left untouched.
     Base.metadata.create_all(bind=engine)

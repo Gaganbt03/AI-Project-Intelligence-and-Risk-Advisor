@@ -54,7 +54,7 @@ def _make_user(client, admin_headers, name, email, headers_override=None):
     r = client.post(
         "/api/users",
         headers=headers_override or admin_headers,
-        json={"name": name, "email": email, "password": "StrongPass1!", "role": "EMPLOYEE", "project_ids": []},
+        json={"name": name, "email": email, "password": "StrongPass1!", "project_ids": []},
     )
     assert r.status_code == 201, r.text
     return r.json()

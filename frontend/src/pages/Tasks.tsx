@@ -9,7 +9,7 @@ import { TasksPanel } from '../panels/TasksPanel';
 
 export default function Tasks() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = true;
   const [projectId, setProjectId] = useState<number | null>(null);
   const [users, setUsers] = useState<any[]>([]);
 

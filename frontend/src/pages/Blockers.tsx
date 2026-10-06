@@ -9,7 +9,7 @@ import { BlockersPanel } from '../panels/BlockersPanel';
 
 export default function Blockers() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const isAdmin = false;
   const [projectId, setProjectId] = useState<number | null>(null);
   const [users, setUsers] = useState<any[]>([]);
 

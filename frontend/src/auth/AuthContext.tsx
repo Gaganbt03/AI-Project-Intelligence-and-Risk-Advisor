@@ -13,7 +13,6 @@ export interface SessionUser {
   id: number;
   email: string;
   name: string;
-  role: string;
   is_active: boolean;
 }
 
@@ -30,7 +29,7 @@ const Ctx = createContext<AuthCtx>({
   user: null,
   loading: true,
   needsSetup: null,
-  login: async () => ({ id: 0, email: '', name: '', role: '', is_active: true }),
+  login: async () => ({ id: 0, email: '', name: '', is_active: true }),
   logout: async () => {},
   refresh: async () => {},
 });

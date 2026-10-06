@@ -36,7 +36,6 @@ export default function Profile() {
               <h3 style={{ fontSize: 18 }}>{user?.name}</h3>
               <span className="muted small">{user?.email}</span>
               <div className="row gap-sm">
-                <Badge tone={user?.role === 'ADMIN' ? 'magenta' : 'violet'}>{user?.role}</Badge>
                 <Badge tone={statusTone(user?.is_active ? 'active' : 'deactivated')}>{user?.is_active ? 'Active' : 'Deactivated'}</Badge>
               </div>
             </div>
@@ -45,10 +44,10 @@ export default function Profile() {
         <div className="panel">
           <div className="panel-head"><h3><ShieldCheck size={15} /> Role capabilities</h3></div>
           <div className="panel-body">
-            {user?.role === 'ADMIN' ? (
+            {false ? (
               <ul className="list-small">
-                <li>Create projects, assign teams and archive projects</li>
-                <li>Manage employees and reset passwords</li>
+                <li>Create projects, upload documents and archive projects</li>
+                <li>Manage user accounts and reset passwords</li>
                 <li>Upload, reprocess and delete any document</li>
                 <li>Run AI analysis agents and inspect results</li>
                 <li>Tune the AI pipeline (chunking, temperature)</li>

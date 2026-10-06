@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models import Project, ProjectMember, Role, User
+from app.models import ProjectMember, User
 from app.schemas import UserCreate
 from app.services.audit import log_event
+from app.services.bootstrap import default_role_id
 from app.services.projects import ProjectServiceError, user_out, validate_project_ids
 from app.services.security import hash_password
 
@@ -13,28 +14,19 @@ class UserServiceError(Exception):
     pass
 
 
-def get_roles(db: Session) -> list[Role]:
-    return db.query(Role).order_by(Role.id).all()
-
-
-def create_user(db: Session, data: UserCreate, *, created_by: int | None, role_check: str, request=None) -> User:
-    if data.role == "ADMIN" and role_check != "ADMIN":
-        raise UserServiceError("Only administrators can create administrator accounts.")
+def create_user(db: Session, data: UserCreate, *, created_by: int | None, request=None) -> User:
     try:
         project_ids = validate_project_ids(db, data.project_ids or [])
     except ProjectServiceError as exc:
         raise UserServiceError(str(exc)) from exc
     if db.query(User).filter(User.email == data.email.lower().strip()).first():
         raise UserServiceError("A user with this email already exists.")
-    role = db.query(Role).filter(Role.code == data.role).first()
-    if not role:
-        raise UserServiceError("Invalid role.")
 
     user = User(
         email=data.email.lower().strip(),
         name=data.name.strip(),
         password_hash=hash_password(data.password),
-        role_id=role.id,
+        role_id=default_role_id(db),
         is_active=True,
         created_by=created_by,
     )
@@ -51,7 +43,7 @@ def create_user(db: Session, data: UserCreate, *, created_by: int | None, role_c
         db,
         user_id=created_by,
         user_email="",
-        action="employee_created",
+        action="user_created",
         resource_type="user",
         resource_id=str(user.id),
         detail=user.email,
@@ -64,7 +56,7 @@ def update_user(db: Session, user_id: int, payload, *, actor: User, request=None
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise UserServiceError("User not found.")
-    # Admins cannot edit themselves into inactive or demote themselves dangerously.
+    # A user cannot deactivate their own account.
     if payload.is_active is not None and user.id == actor.id and not payload.is_active:
         raise UserServiceError("You cannot deactivate your own account.")
     if payload.name is not None:
@@ -80,7 +72,7 @@ def update_user(db: Session, user_id: int, payload, *, actor: User, request=None
         db,
         user_id=actor.id,
         user_email=actor.email,
-        action="employee_updated",
+        action="user_updated",
         resource_type="user",
         resource_id=str(user.id),
         detail=user.email,
@@ -93,7 +85,6 @@ def assign_projects(db: Session, user_id: int, project_ids: list[int], *, actor:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise UserServiceError("User not found.")
-    from app.models import ProjectMember
 
     try:
         project_ids = validate_project_ids(db, project_ids or [])
@@ -109,7 +100,7 @@ def assign_projects(db: Session, user_id: int, project_ids: list[int], *, actor:
         db,
         user_id=actor.id,
         user_email=actor.email,
-        action="employee_membership_updated",
+        action="user_membership_updated",
         resource_type="user",
         resource_id=str(user.id),
         detail=f"projects={project_ids}",

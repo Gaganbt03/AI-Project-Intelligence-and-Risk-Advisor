@@ -306,7 +306,7 @@ def persist_health_metrics(db: Session, project_id: int) -> dict:
     db.add(
         ProjectInsight(
             project_id=project_id, agent="health", category="metrics",
-            title="Health Metrics (Milestone basis)", summary="",
+            title="Health Metrics", summary="",
             payload=metrics, evidence=[],
         )
     )

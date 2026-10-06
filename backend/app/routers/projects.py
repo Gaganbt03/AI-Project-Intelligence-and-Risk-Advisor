@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_accessible_project, get_current_user, require_admin
+from app.deps import get_accessible_project, get_current_user
 from app.models import Project, User
 from app.schemas import ApiResponse, ProjectCreate, ProjectOut, ProjectUpdate
 from app.services.audit import log_event
@@ -24,7 +24,7 @@ def list_projects(user: User = Depends(get_current_user), db: Session = Depends(
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
-def create_project(payload: ProjectCreate, request: Request, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
+def create_project(payload: ProjectCreate, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         manager_ids = validate_user_ids(db, [payload.manager_id] if payload.manager_id is not None else [])
         member_ids = validate_user_ids(db, payload.member_ids)
@@ -63,7 +63,7 @@ def get_project(project_id: int, user: User = Depends(get_current_user), db: Ses
 
 @router.put("/{project_id}", response_model=ProjectOut)
 def update_project(project_id: int, payload: ProjectUpdate, request: Request,
-                   actor: User = Depends(require_admin), db: Session = Depends(get_db)):
+                   actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = get_accessible_project(project_id, actor, db)
     try:
         manager_ids = validate_user_ids(db, [payload.manager_id] if payload.manager_id is not None else [])
@@ -89,7 +89,7 @@ def update_project(project_id: int, payload: ProjectUpdate, request: Request,
 
 
 @router.delete("/{project_id}", response_model=ApiResponse)
-def archive_project(project_id: int, request: Request, actor: User = Depends(require_admin), db: Session = Depends(get_db)):
+def archive_project(project_id: int, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Archive (soft) a project — deletes are avoided to protect audit history."""
     from app.models import utcnow
 

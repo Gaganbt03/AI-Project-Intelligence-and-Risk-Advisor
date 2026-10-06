@@ -17,12 +17,17 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(subject: str, role_code: str) -> str:
+def create_access_token(subject: str, role_code: str | None = None) -> str:
+    """Create a signed JWT for a user id.
+
+    ``role_code`` is accepted only so tokens minted before the role system was
+    removed keep decoding without error. Roles are no longer written into new
+    tokens and are never used for authorization.
+    """
     settings = get_settings()
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(subject),
-        "role": role_code,
         "iat": now,
         "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     }

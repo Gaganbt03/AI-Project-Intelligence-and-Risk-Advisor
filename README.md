@@ -1,94 +1,69 @@
 # AI Project Intelligence & Risk Advisor
 
-A full-stack project intelligence platform that turns uploaded project documents into
-structured, actionable insight using a local, privacy-first AI stack.
+An AI-powered project management and intelligence platform that analyzes project documents, extracts actionable information, identifies risks and blockers, forecasts delivery health, and provides grounded project insights using RAG and AI agents.
 
-Users upload PDF / DOCX / CSV / TXT documents for a project. The backend extracts text,
-chunks it, and embeds everything into a **project-isolated** vector store (RAG). A chain of
-AI agents then analyzes the project knowledge base and produces:
+---
 
-- **Scope** — goals, deliverables, milestones, responsibilities, technologies, requirements
-- **Risks** — schema-validated risk register with evidence and source citations
-- **Forecast** — delivery forecast, schedule status and contributing factors
-- **Blockers** — detected issues with the underlying evidence fragment
-- **Action items** — recommended tasks with assignees and deadlines, written back to the task board
-- **Assistant** — a project-scoped Q&A chat. Answers surface the document chunks they are
-  grounded in, so every claim is traceable.
+## 📌 Overview
 
-## Highlights
+**AI Project Intelligence & Risk Advisor** is a full-stack AI application designed to help project teams understand and manage project information from their existing documents.
 
-- **No demo data.** The app starts empty. The first real Administrator is created through the
-  setup screen (or your environment). Nothing is seeded.
-- **Privacy-first AI.** Default runtime is 100% local via **Ollama** — `qwen2.5:3b` for
-  generation and `nomic-embed-text` for embeddings. Optional OpenAI-compatible external
-  providers can be added as an automatic failover chain; API keys never reach the browser.
-- **Original files are preserved.** Downloads return the exact binary that was uploaded —
-  never a regenerated copy.
-- **Role-based access.** `ADMIN` vs `EMPLOYEE` enforcement happens server-side on every route.
-- **Project isolation.** RAG retrieval, documents, insights and finances are strictly scoped
-  to the projects a user is a member of.
-- **Audit trail.** Sign-ins, uploads, downloads, AI runs and entitlement changes are recorded.
-- **Premium UI.** Dark violet/magenta design system, glass panels, agent step progress, empty
-  states and a role-aware sidebar.
+Instead of manually reading proposals, requirements, meeting notes, progress reports, and task files, users can upload project documents and let the system automatically analyze the available information.
 
-## Architecture (short)
+The platform combines:
 
-```
-frontend/   React 18 + Vite + TypeScript SPA  (port 5173, proxies /api)
-backend/    FastAPI + SQLAlchemy + ChromaDB + Ollama  (port 8000)
-```
+- Retrieval-Augmented Generation (RAG)
+- AI agents
+- Document processing
+- Vector search
+- Project health analysis
+- Risk detection
+- Blocker identification
+- Task and action-item extraction
+- Delivery forecasting
+- AI-generated project documentation
+- Conversational project assistance
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full component map and [API.md](API.md) for
-the endpoint reference.
+The system is designed to keep AI-generated information grounded in the uploaded project data rather than generating unrelated or unsupported information.
 
-## Getting started
+---
 
-Follow [SETUP.md](SETUP.md) for a step-by-step install.
+## ✨ Key Features
 
-### Prerequisites
+### 📄 Intelligent Document Upload
 
-- Python 3.11+ (developed on 3.13)
-- Node.js 20+
-- Ollama running locally with:
-  - `ollama pull qwen2.5:3b`
-  - `ollama pull nomic-embed-text`
+Upload project-related files such as:
 
-### Quick start
+- PDF
+- DOCX
+- TXT
+- CSV
 
-```bash
-# Backend
-cd backend
-python -m venv .venv && .venv\Scripts\activate   # (Windows) / source .venv/bin/activate (mac/Linux)
-pip install -r requirements.txt
-copy .env.example .env                           # cp .env.example .env on mac/Linux
-python run.py                                    # http://127.0.0.1:8000 (docs at /docs)
+The system extracts and processes the document content automatically.
 
-# Frontend (new terminal)
-cd frontend
-npm install
-npm run dev                                      # http://localhost:5173
-```
+After a document is uploaded, the project analysis pipeline automatically processes the available information and updates the project intelligence.
 
-Open http://localhost:5173, complete the **Create administrator** step (first run only),
-then log in and create your first project.
+---
 
-## Testing
+### 🔎 Retrieval-Augmented Generation (RAG)
 
-```bash
-cd backend
-.venv\Scripts\python -m pytest tests -q          # 38 test cases, isolated temp DB
-```
+The application uses RAG to provide project-specific AI responses.
 
-The suite covers auth, RBAC, project and RAG isolation, document upload/download of the
-original binary, task/risk/blocker flows, AI provider status (without leaking keys), the
-agent run pipeline and the assistant. Ollama should be reachable for full coverage; the
-analysis test is intentionally tolerant of AI provider outages.
+The general flow is:
 
-## Production notes
-
-- Set a long random `SECRET_KEY`.
-- `ADMIN_EMAIL` / `ADMIN_PASSWORD` can bootstrap the first admin from the environment and
-  should be removed afterwards.
-- Add OpenAI-compatible external providers in `.env` for automatic failover if Ollama is
-  unavailable or for higher quality generation.
-- The vector store, uploads and SQLite DB all live under `backend/data/` (gitignored).
+```text
+Project Documents
+       ↓
+Document Extraction
+       ↓
+Text Chunking
+       ↓
+Embeddings
+       ↓
+Vector Database
+       ↓
+Relevant Context Retrieval
+       ↓
+AI Processing
+       ↓
+Grounded Project Information

@@ -48,76 +48,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return handle<T>(res);
 }
 
-/** Role of a provider inside the ordered fallback chain. */
-export type ProviderRole = 'primary' | 'fallback_1' | 'fallback_2' | 'fallback_3' | 'fallback_4' | 'extra';
-
-/**
- * Lifecycle of a provider slot.
- * - `not_configured`  no base URL / no API key
- * - `discovering`     key present, model not resolved yet (discovered on first use)
- * - `online`          model resolved and the probe succeeded
- * - `offline`         model resolved but the provider is not answering
- * - `unavailable`     circuit breaker open, waiting for cooldown
- */
-export type ProviderState = 'not_configured' | 'discovering' | 'online' | 'offline' | 'unavailable';
-
-/** Where the model id came from: pinned in env, or auto-discovered from the API. */
-export type ProviderModelSource = 'configured' | 'discovered' | 'none';
-
-/**
- * One row of the provider chain returned by GET /api/admin/settings/ai-providers.
- * NOTE: the backend never returns an API key — only `key_configured` (boolean)
- * and `key_masked` (a fixed redaction with no characters of the secret).
- */
-export interface AiProviderInfo {
-  key: string;
-  name: string;
-  kind: 'ollama' | 'external';
-  index: number;
-  role: ProviderRole;
-  order: number;
-  model: string;
-  model_available: boolean;
-  model_source: ProviderModelSource;
-  configured: boolean;
-  in_chain: boolean;
-  key_configured: boolean;
-  key_masked: string;
-  healthy: boolean;
-  breaker_open: boolean;
-  state: ProviderState;
-  detail: string;
-  primary: boolean;
-}
-
-export interface AiEmbeddingInfo {
-  provider: string;
-  model: string;
-  dimension?: number;
-  healthy: boolean;
-  detail?: string;
-}
-
-export interface AiProviderStatus {
-  providers: AiProviderInfo[];
-  embedding: AiEmbeddingInfo;
-}
-
-export interface ProviderTestResult {
-  key: string;
-  name: string;
-  role: ProviderRole;
-  model: string;
-  model_available: boolean;
-  model_source: ProviderModelSource;
-  configured: boolean;
-  healthy: boolean;
-  state: ProviderState;
-  key_configured: boolean;
-  key_masked: string;
-  detail: string;
-}
-
 /* ------------------------------------------------------------------ *
  * Advanced analysis types: generated documents, health scoring,
  * conversational assistant and upload validation.
@@ -511,12 +441,6 @@ export const api = {
     request<any>(`/api/tasks?project_id=${projectId}`, { method: 'POST', body: JSON.stringify(payload) }),
   updateTask: (id: number, payload: any) => request<any>(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
-  // AI Insights
-  listInsights: (projectId: number) => request<any[]>(`/api/projects/${projectId}/insights`),
-  projectHealth: (projectId: number) => request<any>(`/api/projects/${projectId}/insights/health`),
-  runAnalysis: (projectId: number) => request<any>(`/api/projects/${projectId}/insights`, { method: 'POST' }),
-  aiRuns: (projectId: number) => request<any[]>(`/api/projects/${projectId}/insights/runs`),
-
   // Assistant
   askAssistant: (projectId: number, question: string) =>
     request<any>(`/api/projects/${projectId}/assistant`, { method: 'POST', body: JSON.stringify({ question }) }),
@@ -607,10 +531,6 @@ export const api = {
 
   // Settings
   generalSettings: () => request<any>('/api/settings/general'),
-  aiProviderStatus: () => request<AiProviderStatus>('/api/admin/settings/ai-providers'),
-  testProvider: (key: string) => request<ProviderTestResult>(`/api/admin/settings/ai-providers/${key}/test`, { method: 'POST' }),
-  adminGeneral: () => request<any>('/api/admin/settings/general'),
-  updateGeneral: (payload: any) => request<any>('/api/admin/settings/general', { method: 'PUT', body: JSON.stringify(payload) }),
 
   // Audit
   auditLogs: (params: Record<string, any> = {}) => {

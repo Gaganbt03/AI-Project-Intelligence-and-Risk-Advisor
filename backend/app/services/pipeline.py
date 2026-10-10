@@ -63,7 +63,7 @@ STAGES: tuple[tuple[str, str], ...] = (
     ("blockers_analyzed", "Blockers analyzed"),
     ("forecast_calculated", "Forecast calculated"),
     ("health_calculated", "Health score calculated"),
-    ("insights_prepared", "AI insights prepared"),
+    ("insights_prepared", "Analysis results prepared"),
     ("documents_ready", "Generated documents ready"),
 )
 
@@ -442,10 +442,10 @@ def run_project_pipeline(
     # -- stage 8: insights readiness ----------------------------------------
     insight_count = db.query(ProjectInsight).filter(ProjectInsight.project_id == project_id).count()
     if insight_count:
-        _mark(stages, "insights_prepared", "done", f"{insight_count} insight(s) available.")
+        _mark(stages, "insights_prepared", "done", f"{insight_count} analysis result(s) recorded.")
         counts["insights"] = insight_count
     else:
-        _skip(stages, "insights_prepared", "No insights were produced from the documents.")
+        _skip(stages, "insights_prepared", "No analysis results were produced from the documents.")
     flush("documents_ready")
 
     # -- stage 9: generated documents ---------------------------------------

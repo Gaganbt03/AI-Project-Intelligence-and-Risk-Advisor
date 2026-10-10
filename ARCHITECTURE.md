@@ -6,11 +6,11 @@
  ┌─────────────────────────── SCREEN (SPA) ───────────────────────────┐
  │ frontend/  React 18 + Vite + TypeScript                            │
  │  - AuthContext (JWT in localStorage), role-aware sidebar            │
- │  - Pages: Projects / ProjectDetail / Documents / Insights / Tasks   │
- │           Risks / Blockers / Employees / AiSettings / AuditLogs /   │
+ │  - Pages: Projects / ProjectDetail / Documents / Tasks              │
+ │           Risks / Blockers / Employees / AuditLogs /                │
  │           Profile / ReportBlocker / Assistant / auth pages          │
  │  - Panels: DocsPanel, TasksPanel, RisksPanel, BlockersPanel,        │
- │            InsightsPanel, AssistantPanel (reused across pages)      │
+ │            AssistantPanel (reused across pages)                     │
  │  - Toast system, custom SVG charts, agent-step progress UI          │
  │  - `api/client.ts` = single typed API wrapper (XHR uploads, auth)   │
  └──────────────────────────────┬──────────────────────────────────────┘

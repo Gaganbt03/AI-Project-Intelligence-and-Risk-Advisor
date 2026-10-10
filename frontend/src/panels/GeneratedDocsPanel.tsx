@@ -397,7 +397,7 @@ export function GeneratedDocsPanel({ projectId }: { projectId: number }) {
       const res = await api.generateDocs(projectId, docType);
       const n = res.generated?.length || 0;
       if (n) toast.success(`${n} document${n > 1 ? 's' : ''} generated.`);
-      else toast.error('Generation failed. Check the AI provider settings.');
+      else toast.error('Generation failed. Please try again.');
       if (res.failed) toast.error(`${res.failed} document type(s) could not be generated.`);
       await load();
     } catch (err: any) {

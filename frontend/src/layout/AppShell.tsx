@@ -6,13 +6,11 @@ import {
   Users,
   FileText,
   Bot,
-  Cpu,
   ScrollText,
   LogOut,
   ListChecks,
   TriangleAlert,
   CircleSlash,
-  Sparkles,
   ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
@@ -41,7 +39,6 @@ const APP_NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'Intelligence',
     items: [
-      { to: '/insights', label: 'AI Insights', icon: <Sparkles size={17} /> },
       { to: '/tasks', label: 'Tasks', icon: <ListChecks size={17} /> },
       { to: '/risks', label: 'Risks', icon: <TriangleAlert size={17} /> },
       { to: '/blockers', label: 'Blockers', icon: <CircleSlash size={17} /> },
@@ -52,7 +49,6 @@ const APP_NAV: { group: string; items: NavItem[] }[] = [
   {
     group: 'System',
     items: [
-      { to: '/ai-settings', label: 'AI Providers', icon: <Cpu size={17} /> },
       { to: '/audit-logs', label: 'Audit Logs', icon: <ScrollText size={17} /> },
     ],
   },

@@ -87,13 +87,15 @@ npm run build        # type-checks (tsc) and bundles into frontend/dist
 4. On **Employees**, add team members and assign them to projects.
 5. Inside a project, **Documents** — upload PDF/DOCX/CSV/TXT files.
    Processing + embedding happens automatically; files show a status.
-6. **AI Insights → Run Analysis** — the five agents run and results appear as structured
-   cards backed by source citations.
+6. The **automatic analysis** runs right after each upload — the five agents produce
+   scope, risks, forecast, blockers and action items backed by source citations. You can
+   re-run it any time from the project's **Documents** tab (**Re-run analysis**); results
+   show up in the project's Risks, Blockers, Tasks, Health and Generated Docs tabs.
 7. Try the **Assistant** tab — ask a question; the answer shows its grounding sources.
-8. Optional: **Settings → AI Providers** (admin) — add a Groq, Gemini, OpenRouter or
-   Hugging Face API key to switch generation to a cloud provider when Ollama is unavailable.
-   The page lists the chain in order and lets you test each slot; keys are typed there and
-   stored server-side.
+8. Optional: add a Groq, Gemini, OpenRouter or Hugging Face API key in `backend/.env` to
+   switch generation to a cloud provider when Ollama is unavailable. The fallback chain is
+   configured entirely server-side; keys stay in the environment and never reach the
+   browser.
 
 ## 5. Configuration reference (`backend/.env`)
 
@@ -143,8 +145,8 @@ with only Ollama configured the app behaves exactly as before.
 `AI_REQUEST_TIMEOUT` (default `180`) is unchanged and remains the **total** request budget
 across all attempts. `AI_PROVIDER_ATTEMPT_TIMEOUT` caps each individual attempt, so a single
 unreachable provider cannot consume all 180 seconds before the next one is tried. After a
-failure, that provider is fast-failed for `AI_PROVIDER_BREAKER_COOLDOWN` seconds; the
-**Test** button on the AI Providers page clears the breaker and runs a real probe.
+failure, that provider is fast-failed for `AI_PROVIDER_BREAKER_COOLDOWN` seconds, then
+eligible for a retry.
 
 ### 5.3 Preconfigured endpoints and models
 
@@ -166,7 +168,7 @@ their catalogs have hundreds of catalog-dependent ids, so set one explicitly.
 
 - Keys are **backend-only**. They are read from `backend/.env` on the server and are never
   embedded in frontend code or shipped to the browser.
-- The AI Providers page shows only `key_configured` (a boolean) and `key_masked` (a fixed
+- The provider API only ever returns `key_configured` (a boolean) and `key_masked` (a fixed
   `***` redaction). No character of any key is ever returned by the API.
 - Leave a provider's `*_API_KEY` blank to mark that slot "Not Configured" — it will be
   skipped by the chain.
@@ -196,13 +198,14 @@ that file alone will fail; that is expected, not a regression.
 
 ## 7. Troubleshooting
 
-- **`All AI providers failed`** on analysis → *every* provider in the chain failed. Check
-  **Settings → AI Providers**: an offline `detail` and `breaker_open: true` identify the
+- **`All AI providers failed`** on analysis → *every* provider in the chain failed. Inspect
+  the chain via the admin endpoint `GET /api/admin/settings/ai-providers`: an offline
+  `detail` and `breaker_open: true` identify the
   culprit. Then work down the chain — Ollama not running or `qwen2.5:3b` / `nomic-embed-text`
   not pulled (`ollama pull qwen2.5:3b`, `ollama pull nomic-embed-text`); a cloud provider with
   `configured: false` (blank `*_API_KEY`); a bad `*_MODEL`; a wrong `*_BASE_URL`; or an
-  expired/invalid key. Use the per-provider **Test** button — it clears the circuit breaker
-  and runs a real probe, so a `false` result there is trustworthy.
+  expired/invalid key. `POST /api/admin/settings/ai-providers/{key}/test` clears that
+  provider's circuit breaker and runs a real probe, so a `false` result there is trustworthy.
 - **A cloud provider stays "Not Configured"** → its `*_API_KEY` is blank, or (for
   `EXTERNAL_PROVIDER_1..3`) its base URL duplicates an earlier provider. Restart the backend
   after editing `.env`.

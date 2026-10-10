@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft, FolderKanban, FileText, ListChecks, TriangleAlert, CircleSlash,
-  Sparkles, Bot, ArrowRight, Calendar, Activity, BookOpen,
+  Bot, ArrowRight, Calendar, Activity, BookOpen,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { AppShell } from '../layout/AppShell';
@@ -15,7 +15,6 @@ import { DocsPanel } from '../panels/DocsPanel';
 import { TasksPanel } from '../panels/TasksPanel';
 import { RisksPanel } from '../panels/RisksPanel';
 import { BlockersPanel } from '../panels/BlockersPanel';
-import { InsightsPanel } from '../panels/InsightsPanel';
 import { AssistantPanel } from '../panels/AssistantPanel';
 import { HealthPanel } from '../panels/HealthPanel';
 import { GeneratedDocsPanel } from '../panels/GeneratedDocsPanel';
@@ -28,7 +27,6 @@ const TABS = [
   { key: 'tasks', label: 'Tasks', icon: <ListChecks size={15} /> },
   { key: 'risks', label: 'Risks', icon: <TriangleAlert size={15} /> },
   { key: 'blockers', label: 'Blockers', icon: <CircleSlash size={15} /> },
-  { key: 'insights', label: 'AI Insights', icon: <Sparkles size={15} /> },
   { key: 'assistant', label: 'Assistant', icon: <Bot size={15} /> },
 ];
 
@@ -65,8 +63,6 @@ export default function ProjectDetail() {
     () => allUsers.filter((u) => (project?.member_ids || []).includes(u.id)),
     [allUsers, project],
   );
-
-  const refreshInsights = useCallback(() => { load(); }, [load]);
 
   if (loading) return <AppShell title="…" crumb="Projects"><PageLoader label="Loading project…" /></AppShell>;
   if (!project) {
@@ -105,7 +101,6 @@ export default function ProjectDetail() {
           <QuickLink icon={<ListChecks size={16} />} text="Manage tasks" onClick={() => setTab('tasks')} />
           <QuickLink icon={<Activity size={16} />} text="Check project health" onClick={() => setTab('health')} />
           <QuickLink icon={<BookOpen size={16} />} text="Generate documentation" onClick={() => setTab('generated')} />
-          <QuickLink icon={<Sparkles size={16} />} text="Run AI analysis" onClick={() => setTab('insights')} />
           <QuickLink icon={<Bot size={16} />} text="Ask the assistant" onClick={() => setTab('assistant')} />
           <QuickLink icon={<TriangleAlert size={16} />} text="Review risks" onClick={() => setTab('risks')} />
         </div>
@@ -117,11 +112,6 @@ export default function ProjectDetail() {
     <AppShell
       title={project.name}
       crumb={`Projects · ${project.status}`}
-      actions={
-        <>
-          {isAdmin && tab === 'insights' && <></>}
-        </>
-      }
     >
       <div className="row-between wrap" style={{ gap: 10 }}>
         <div className="row gap-sm">
@@ -154,7 +144,6 @@ export default function ProjectDetail() {
       {tab === 'tasks' && <TasksPanel projectId={pid} users={assignees.map((u) => ({ id: u.id, name: u.name }))} />}
       {tab === 'risks' && <RisksPanel projectId={pid} />}
       {tab === 'blockers' && <BlockersPanel projectId={pid} employees={assignees.map((u) => ({ id: u.id, name: u.name }))} />}
-      {tab === 'insights' && <InsightsPanel projectId={pid} onRunDone={refreshInsights} />}
       {tab === 'assistant' && <AssistantPanel projectId={pid} />}
     </AppShell>
   );

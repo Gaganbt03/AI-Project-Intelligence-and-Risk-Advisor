@@ -41,7 +41,7 @@ def ask(project_id: int, question: str, top_k: int | None = None) -> dict:
     except AIProviderError as exc:
         logger.error("Assistant provider failed: %s", exc)
         return {
-            "answer": "The AI provider is currently unavailable. Please check the AI Provider Settings.",
+            "answer": "The AI provider is currently unavailable. Please try again later.",
             "sources": sources,
             "provider": "",
             "model": "",

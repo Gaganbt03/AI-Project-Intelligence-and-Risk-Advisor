@@ -54,7 +54,7 @@ INSUFFICIENT_EVIDENCE = (
 )
 
 PROVIDER_UNAVAILABLE = (
-    "The AI provider is currently unavailable. Please check the AI Provider Settings."
+    "The AI provider is currently unavailable. Please try again later."
 )
 
 ASSISTANT_SYSTEM_M3 = (

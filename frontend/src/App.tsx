@@ -11,11 +11,9 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 
 import Documents from './pages/Documents';
-import Insights from './pages/Insights';
 import Tasks from './pages/Tasks';
 import RisksPage from './pages/Risks';
 import BlockersPage from './pages/Blockers';
-import AiSettings from './pages/AiSettings';
 import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
 import ReportBlocker from './pages/ReportBlocker';
@@ -59,14 +57,12 @@ export default function App() {
         <Route path="/projects" element={<Protected><Projects /></Protected>} />
         <Route path="/projects/:id" element={<Protected><ProjectDetail /></Protected>} />
         <Route path="/documents" element={<Protected><Documents /></Protected>} />
-        <Route path="/insights" element={<Protected><Insights /></Protected>} />
         <Route path="/tasks" element={<Protected><Tasks /></Protected>} />
         <Route path="/risks" element={<Protected><RisksPage /></Protected>} />
         <Route path="/blockers" element={<Protected><BlockersPage /></Protected>} />
         <Route path="/report-blocker" element={<Protected><ReportBlocker /></Protected>} />
         <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
 
-        <Route path="/ai-settings" element={<Protected ><AiSettings /></Protected>} />
         <Route path="/audit-logs" element={<Protected ><AuditLogs /></Protected>} />
         <Route path="/profile" element={<Protected><Profile /></Protected>} />
 

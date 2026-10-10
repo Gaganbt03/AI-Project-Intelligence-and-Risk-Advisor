@@ -2,10 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FolderKanban, Users, FileText, TriangleAlert, CircleSlash, Sparkles, Activity,
-  Plus, ArrowRight, ListChecks, Cpu, HeartPulse, Gauge, CalendarClock,
+  Plus, ArrowRight, ListChecks, HeartPulse, Gauge, CalendarClock,
 } from 'lucide-react';
 import { api } from '../api/client';
-import type { AiProviderStatus } from '../api/client';
 import { AppShell } from '../layout/AppShell';
 import { EmptyState, PageLoader } from '../components/EmptyState';
 import { Badge, SeverityBadge, statusTone } from '../components/Badge';
@@ -14,18 +13,13 @@ import { timeAgo } from '../utils/format';
 
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
-  const [ai, setAi] = useState<AiProviderStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
 
   const load = useCallback(async () => {
     try {
-      const [d, a] = await Promise.all([
-        api.dashboard(),
-        api.aiProviderStatus().catch(() => null),
-      ]);
+      const d = await api.dashboard();
       setData(d);
-      setAi(a);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to load dashboard.');
     } finally {
@@ -49,7 +43,6 @@ export default function Dashboard() {
     }>
       <div className="col">
         <PortfolioStats data={data} />
-        <AiStatusStrip ai={ai} />
 
         {data.projects.length === 0 ? (
           <div className="panel">
@@ -71,10 +64,7 @@ export default function Dashboard() {
           </>
         )}
 
-        <div className="grid grid-2">
-          <RecentInsights data={data} />
-          <RecentDocuments data={data} />
-        </div>
+        <RecentDocuments data={data} />
 
         <RecentActivity data={data} />
       </div>
@@ -98,72 +88,6 @@ function PortfolioStats({ data }: { data: any }) {
       <StatCard icon={<TriangleAlert size={18} />} label="Open Risks" value={s.open_risks} accent={s.critical_risks ? `● ${s.critical_risks} critical` : undefined} />
       <StatCard icon={<CircleSlash size={18} />} label="Open Blockers" value={s.open_blockers} />
       <StatCard icon={<Gauge size={18} />} label="My Open Tasks" value={data.pending_action_items} />
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- * Active AI provider / model — read from the live provider chain.
- * No key material is ever requested or rendered here.
- * ------------------------------------------------------------------ */
-function AiStatusStrip({ ai }: { ai: AiProviderStatus | null }) {
-  if (!ai || !ai.providers?.length) {
-    return (
-      <div className="panel">
-        <div className="panel-head"><h3><Cpu size={15} /> AI Provider</h3></div>
-        <div className="panel-body tiny dim">Provider status is unavailable right now.</div>
-      </div>
-    );
-  }
-
-  const inChain = ai.providers.filter((p) => p.in_chain);
-  const active = inChain.find((p) => p.healthy) || inChain[0];
-  const fallbacks = inChain.filter((p) => p.key !== active?.key);
-
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <h3><Cpu size={15} /> AI Provider</h3>
-        <span className="ph-sub">live status from the server · no API keys are ever sent to the browser</span>
-      </div>
-      <div className="panel-body col" style={{ gap: 12 }}>
-        <div className="row gap-sm wrap">
-          <span className={`dot ${active?.healthy ? 'dot-ok' : 'dot-bad'}`} />
-          <div className="col gap-sm" style={{ gap: 2 }}>
-            <div className="row gap-sm wrap">
-              <b>{active?.name ?? 'Unknown'}</b>
-              <Badge tone={active?.healthy ? 'ok' : 'err'} plain>{active?.healthy ? 'Active' : 'Unavailable'}</Badge>
-              <Badge tone="violet" plain>{active?.kind === 'ollama' ? 'Local' : 'Cloud'}</Badge>
-              {active?.model_source === 'discovered' && <Badge tone="cyan" plain>Model auto-discovered</Badge>}
-            </div>
-            <span className="tiny dim">Model: {active?.model || 'not set'}</span>
-          </div>
-          <div style={{ marginLeft: 'auto' }}>
-            <Link to="/ai-settings" className="btn btn-secondary btn-sm">AI Settings <ArrowRight size={13} /></Link>
-          </div>
-        </div>
-
-        <div className="row gap-sm wrap">
-          <span className="tiny dim" style={{ minWidth: 92 }}>Fallback chain</span>
-          {fallbacks.length === 0 ? (
-            <span className="tiny dim">No fallback provider configured.</span>
-          ) : (
-            fallbacks.map((p) => (
-              <Badge key={p.key} tone={p.breaker_open ? 'err' : p.healthy ? 'ok' : 'neutral'} plain>
-                {p.name}{p.model ? ` · ${p.model}` : ''}{p.breaker_open ? ' · circuit open' : ''}
-              </Badge>
-            ))
-          )}
-        </div>
-
-        <div className="row gap-sm wrap">
-          <span className="tiny dim" style={{ minWidth: 92 }}>Embeddings</span>
-          <Badge tone={ai.embedding.healthy ? 'ok' : 'err'} plain>
-            {ai.embedding.provider} · {ai.embedding.model}
-            {ai.embedding.dimension ? ` · ${ai.embedding.dimension}-d` : ''}
-          </Badge>
-        </div>
-      </div>
     </div>
   );
 }
@@ -317,7 +241,7 @@ function Recommendations({ data }: { data: any }) {
     items.push({
       tone: 'warn',
       text: `${unanalysed.length} project${unanalysed.length === 1 ? '' : 's'} not analysed yet: ${unanalysed.map((p: any) => p.project.name).join(', ')}.`,
-      to: '/insights',
+      to: '/projects',
     });
   }
   const undocumented = data.projects.filter((p: any) => (p.project.document_count ?? 0) === 0);
@@ -336,7 +260,7 @@ function Recommendations({ data }: { data: any }) {
     items.push({
       tone: 'warn',
       text: `Delivery forecast flags ${behind.length} project${behind.length === 1 ? '' : 's'} at risk: ${behind.map((p: any) => p.project.name).join(', ')}.`,
-      to: '/insights',
+      to: '/projects',
     });
   }
   if (items.length === 0) {
@@ -360,32 +284,6 @@ function Recommendations({ data }: { data: any }) {
             <ArrowRight size={14} style={{ marginLeft: 'auto', color: 'var(--violet-2)' }} />
           </Link>
         ))}
-      </div>
-    </div>
-  );
-}
-
-function RecentInsights({ data }: { data: any }) {
-  return (
-    <div className="panel">
-      <div className="panel-head"><h3><Sparkles size={15} /> Recent AI Insights</h3></div>
-      <div className="panel-body col" style={{ gap: 4 }}>
-        {data.recent_insights.length === 0 ? (
-          <div className="tiny dim" style={{ padding: 14 }}>
-            No AI insights yet. Upload documents to a project and run an analysis.
-          </div>
-        ) : (
-          data.recent_insights.slice(0, 6).map((i: any) => (
-            <div key={i.id} className="activity-item">
-              <span className="activity-dot" />
-              <div className="col gap-sm" style={{ gap: 3 }}>
-                <div className="small"><b>{titleFor(i)}</b> <span className="dim tiny">· {agentLabel(i.agent)}</span></div>
-                {i.summary && <div className="tiny dim">{i.summary.slice(0, 140)}</div>}
-                <Link to={`/projects/${i.project_id}`} className="tiny" style={{ color: 'var(--violet-2)' }}>View project →</Link>
-              </div>
-            </div>
-          ))
-        )}
       </div>
     </div>
   );
@@ -455,30 +353,6 @@ function StatCard({ icon, label, value, accent }: { icon: React.ReactNode; label
       {accent && <div className="tiny" style={{ color: 'var(--amber)' }}>{accent}</div>}
     </div>
   );
-}
-
-function agentLabel(a: string) {
-  const map: Record<string, string> = {
-    scope: 'Scope', risk: 'Risk', forecast: 'Forecast',
-    blocker: 'Blocker', action: 'Action Item', health: 'Health',
-  };
-  return map[a] || a;
-}
-
-function titleFor(i: any) {
-  if (i.title) return i.title;
-  const map: Record<string, string> = {
-    project_goal: 'Project Goal',
-    scope: 'Scope Item',
-    out_of_scope: 'Out of Scope',
-    deliverable: 'Deliverable',
-    milestone: 'Project Milestone',
-    timeline: 'Timeline',
-    responsibility: 'Responsibility',
-    technology: 'Technology',
-    requirement: 'Requirement',
-  };
-  return map[i.category] || i.category || 'Insight';
 }
 
 function riskTone(v: string) {

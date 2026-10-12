@@ -6,9 +6,23 @@
 
 An AI-powered workspace to analyze project documents, identify risks and blockers, organize action items, and ask evidence-grounded questions using Retrieval-Augmented Generation (RAG).
 
-<img src="https://img.shields.io/badge/Frontend-React%20%7C%20TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="React and TypeScript">
-<img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
-<img src="https://img.shields.io/badge/AI-RAG%20%7C%20LLMs-7C3AED?style=for-the-badge" alt="RAG and LLMs">
+<p align="center">
+  <a href="https://react.dev/" target="_blank">
+    <img src="https://img.shields.io/badge/Frontend-React-3178C6?style=for-the-badge&logo=react&logoColor=white" alt="React Official Website">
+  </a>
+  <a href="https://www.typescriptlang.org/" target="_blank">
+    <img src="https://img.shields.io/badge/Language-TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript Official Website">
+  </a>
+  <a href="https://fastapi.tiangolo.com/" target="_blank">
+    <img src="https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI Official Website">
+  </a>
+  <a href="https://python.org/" target="_blank">
+    <img src="https://img.shields.io/badge/Language-Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python Official Website">
+  </a>
+  <a href="https://www.langchain.com/" target="_blank">
+    <img src="https://img.shields.io/badge/AI-RAG%20%7C%20LLMs-7C3AED?style=for-the-badge" alt="LangChain Official Website">
+  </a>
+</p>
 
 **Documents → Intelligence → Decisions**
 

@@ -46,15 +46,14 @@ def test_download_returns_original_bytes(client, employee_headers, project_a):
     assert "attachment" in dl.headers.get("content-disposition", "")
 
 
-def test_employee_cannot_upload_to_unassigned_project(client, employee_headers, admin_headers):
-    p = client.post(
-        "/api/projects", headers=admin_headers,
-        json={"name": "Locked Vault", "member_ids": []},
-    ).json()
-    r = _upload(client, employee_headers, p["id"], "p.txt", b"hello")
-    assert r.status_code == 201
-    # employee also cannot read it
-    assert client.get(f"/api/documents?project_id={p['id']}", headers=employee_headers).status_code == 200
+def test_upload_to_another_workspace_is_rejected(client, employee_headers, project_b):
+    # `project_b` belongs to a different browser/session. This workspace must not
+    # be able to upload into it, nor read its documents (404, never a leak).
+    r = _upload(client, employee_headers, project_b["id"], "p.txt", b"hello")
+    assert r.status_code == 404, r.text
+    assert client.get(
+        f"/api/documents?project_id={project_b['id']}", headers=employee_headers
+    ).status_code == 404
 
 
 def test_employee_permissions_on_documents(client, employee_headers, admin_headers, project_a):

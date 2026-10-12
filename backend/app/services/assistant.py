@@ -49,6 +49,19 @@ def ask(project_id: int, question: str, top_k: int | None = None) -> dict:
             "error": str(exc),
         }
 
+    answer = (answer or "").strip()
+    # The model may decline even when a chunk was retrieved; a refusal is not a
+    # grounded answer, and an empty reply is treated the same way.
+    if not answer or NOT_FOUND_MSG.lower() in answer.lower():
+        return {
+            "answer": NOT_FOUND_MSG,
+            "sources": sources,
+            "provider": provider,
+            "model": model,
+            "grounded": False,
+            "retrieved_count": len(chunks),
+        }
+
     return {
         "answer": answer,
         "sources": sources,

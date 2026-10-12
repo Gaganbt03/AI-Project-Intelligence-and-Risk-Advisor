@@ -92,10 +92,34 @@ def offline_ai(monkeypatch):
 
 
 def _new_project(client, headers, name, **body):
-    payload = {"name": name, **body}
-    r = client.post("/api/projects", headers=headers, json=payload)
-    assert r.status_code in (200, 201), r.text
-    return r.json()
+    """Bind ``client`` to a fresh anonymous workspace and optionally set fields.
+
+    Project creation over the API is intentionally forbidden in the login-free
+    model: a workspace is created by starting a session. Tests that need a
+    clean project (and, for the due-date precedence cases, a project-record date)
+    therefore start a new session and apply any extra fields straight to the row.
+    """
+    from conftest import start_workspace
+
+    pid = start_workspace(client)
+    if body:
+        from datetime import date as _date
+
+        from app.database import SessionLocal
+
+        with SessionLocal() as db:
+            project = db.query(Project).filter(Project.id == pid).first()
+            for key, value in body.items():
+                if not hasattr(project, key):
+                    continue
+                if isinstance(value, str):
+                    try:
+                        value = _date.fromisoformat(value)
+                    except ValueError:
+                        pass
+                setattr(project, key, value)
+            db.commit()
+    return {"id": pid, "name": name}
 
 
 def _upload(client, headers, project_id, text=SPEC, filename="spec.txt"):
@@ -486,10 +510,12 @@ def test_non_admin_users_keep_their_normal_access(client, employee_headers):
 
 
 @pytest.mark.parametrize(
-    "method,path",
-    [("get", "/api/projects/1/analysis/status"), ("post", "/api/projects/1/analysis/run")],
+    "method,suffix",
+    [("get", "/analysis/status"), ("post", "/analysis/run")],
 )
-def test_analysis_endpoints_require_authentication(client, method, path):
-    r = getattr(client, method)(path)
-    assert r.status_code == 401
+def test_analysis_endpoints_reachable_without_login(client, project_a, method, suffix):
+    # Login has been removed; analysis endpoints are reachable for the caller's
+    # own workspace without any credentials.
+    r = getattr(client, method)(f"/api/projects/{project_a['id']}{suffix}")
+    assert r.status_code == 200, r.text
 

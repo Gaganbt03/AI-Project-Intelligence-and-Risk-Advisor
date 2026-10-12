@@ -3,7 +3,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_session_workspace
 from app.models import (
     AuditLog,
     Blocker,
@@ -12,8 +12,8 @@ from app.models import (
     ProjectInsight,
     Risk,
     Task,
-    User,
 )
+from app.models_sessions import WorkspaceSession
 from app.services.projects import project_out
 
 router = APIRouter(tags=["dashboard"])
@@ -33,20 +33,22 @@ def _risk_level_from_metrics(metrics: dict | None, open_risks: int) -> str:
 
 
 @router.get("/dashboard")
-def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Single dashboard for every authenticated user.
+def dashboard(session: WorkspaceSession = Depends(get_session_workspace), db: Session = Depends(get_db)):
+    """Summary for the caller's own workspace only.
 
-    Replaces the previous split between ``/admin/dashboard`` and
-    ``/me/dashboard``. The payload is the union of both so the frontend keeps one
-    data source: portfolio-wide summary numbers, per-project health rows, the
-    signed-in user's own tasks, and recent activity. Nothing here is derived
-    from a user role.
+    Everything here is filtered to the single project owned by the anonymous
+    session, so one workspace can never observe another's projects, documents,
+    tasks, insights or activity.
     """
-    projects = db.query(Project).order_by(Project.created_at.desc()).all()
-    project_ids = [p.id for p in projects]
-    scope = project_ids or [-1]
+    project = db.query(Project).filter(Project.id == session.project_id).first()
+    projects = [project] if project else []
+    scope = [session.project_id]
 
-    total_active = db.query(Project).filter(Project.status == "Active").count()
+    total_active = (
+        db.query(Project)
+        .filter(Project.id.in_(scope), Project.status == "Active")
+        .count()
+    )
 
     def count(model):
         return db.query(func.count(model.id)).filter(model.project_id.in_(scope)).scalar() or 0
@@ -108,7 +110,7 @@ def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_
 
     my_tasks = (
         db.query(Task)
-        .filter(Task.assigned_to == user.id)
+        .filter(Task.project_id.in_(scope))
         .order_by(Task.id.desc())
         .limit(20)
         .all()
@@ -122,7 +124,13 @@ def dashboard(user: User = Depends(get_current_user), db: Session = Depends(get_
         .all()
     )
 
-    recent_activity = db.query(AuditLog).order_by(AuditLog.id.desc()).limit(12).all()
+    recent_activity = (
+        db.query(AuditLog)
+        .filter(AuditLog.project_id.in_(scope))
+        .order_by(AuditLog.id.desc())
+        .limit(12)
+        .all()
+    )
 
     recent_docs = (
         db.query(ProjectDocument)

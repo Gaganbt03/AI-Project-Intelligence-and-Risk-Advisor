@@ -32,6 +32,26 @@ def _clean(value: str | None, fallback: str = NOT_SPECIFIED) -> str:
     return v if v else fallback
 
 
+def _risk_score(entry: dict) -> str:
+    """``12/25`` when the score was computable, else the explicit placeholder.
+
+    The score is only produced when severity, probability and impact are all
+    recorded, so a register row can legitimately carry no score.
+    """
+    score = entry.get("risk_score")
+    if score in (None, "") or score == NOT_SPECIFIED:
+        return NOT_SPECIFIED
+    return f"{score}/{entry.get('risk_score_max', 25)}"
+
+
+def _risk_score_line(entry: dict) -> str:
+    """``12/25 (High)`` — the score with its band, or just the placeholder."""
+    score = _risk_score(entry)
+    if score == NOT_SPECIFIED:
+        return NOT_SPECIFIED
+    return f"{score} ({_clean(entry.get('severity_band'))})"
+
+
 def _labels(items: list | None) -> list[str]:
     """Render relationship values, which may be plain ids or ``{id, title}`` maps."""
     out: list[str] = []
@@ -170,7 +190,7 @@ def render_user_stories(data: dict) -> str:
             f"**I want** {story['goal']},  ",
             f"**so that** {_clean(story.get('benefit'))}.",
             "",
-            f"- **Priority:** {story.get('priority', 'Medium')}",
+            f"- **Priority:** {_clean(story.get('priority'))}",
             f"- **Status:** {_clean(story.get('status'))}",
             f"- **Related requirement:** {_clean(story.get('related_requirement'))}",
             f"- **Source document:** {_clean(story.get('source_document'))}",
@@ -237,7 +257,7 @@ def render_risk_register(data: dict) -> str:
         lines.append(
             f"| {e['risk_id']} | {e['title']} | {_clean(e.get('category'))} | "
             f"{_clean(e.get('probability'))} | {_clean(e.get('impact'))} | "
-            f"{e['risk_score']}/25 | {_clean(e.get('severity_band'))} | "
+            f"{_risk_score(e)} | {_clean(e.get('severity_band'))} | "
             f"{_clean(e.get('status'))} |"
         )
     lines.append("")
@@ -250,7 +270,7 @@ def render_risk_register(data: dict) -> str:
             f"- **Category:** {_clean(e.get('category'))}",
             f"- **Probability:** {_clean(e.get('probability'))}",
             f"- **Impact:** {_clean(e.get('impact'))}",
-            f"- **Risk score:** {e['risk_score']}/25 ({_clean(e.get('severity_band'))})",
+            f"- **Risk score:** {_risk_score_line(e)}",
             f"- **Severity:** {_clean(e.get('severity'))}",
             f"- **Status:** {_clean(e.get('status'))}",
             f"- **Owner:** {_clean(e.get('owner'))}",

@@ -1,4 +1,11 @@
-import pytest
+"""The auth surface after the login-free workspace migration.
+
+The product no longer has accounts or a login screen: a browser is bound to a
+private workspace by an HttpOnly cookie. These tests pin the remaining auth
+endpoints — first-account creation stays closed, credentials cannot be guessed,
+passwords still require the current one, and anonymous workspace requests are
+served without any token.
+"""
 
 
 def test_setup_admin_only_once(client, admin_headers):
@@ -11,59 +18,34 @@ def test_setup_admin_only_once(client, admin_headers):
     assert "already completed" in r.json()["detail"].lower()
 
 
-def test_login_success_and_me(client, admin_headers):
-    r = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "StrongPass1!"})
-    assert r.status_code == 200
-    body = r.json()
-    assert body["access_token"]
-    assert body["user"]["email"] == "admin@example.com"
-
-    me = client.get("/api/auth/me", headers=admin_headers)
-    assert me.status_code == 200
-    assert me.json()["email"] == "admin@example.com"
+def test_auth_status_reports_no_setup_needed(client):
+    assert client.get("/api/auth/status").json()["needs_setup"] is False
 
 
-def test_login_wrong_password(client):
-    r = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "nope"})
+def test_anonymous_requests_allowed_no_login(client):
+    # Login has been removed: the dashboard and API are reachable without a token.
+    assert client.get("/api/auth/me").status_code == 200
+    assert client.get("/api/projects").status_code == 200
+    assert client.get("/api/dashboard").status_code == 200
+
+
+def test_login_for_unknown_account_is_rejected(client):
+    r = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": "nope"})
     assert r.status_code == 401
 
 
-def test_login_inactive_account_blocked(client, admin_headers, employee):
-    r = client.post("/api/auth/login", json={"email": "employee@example.com", "password": "StrongPass1!"})
-    assert r.status_code == 200
-    uid = r.json()["user"]["id"]
-    # Deactivate
-    client.put(f"/api/users/{uid}", headers=admin_headers, json={"is_active": False})
-    blocked = client.post("/api/auth/login", json={"email": "employee@example.com", "password": "StrongPass1!"})
-    assert blocked.status_code == 403
-    client.put(f"/api/users/{uid}", headers=admin_headers, json={"is_active": True})
-
-
-def test_change_password_flow(client, admin_headers):
+def test_change_password_requires_the_current_password(client, admin_headers):
     r = client.post(
         "/api/auth/change-password",
         headers=admin_headers,
-        json={"old_password": "StrongPass1!", "new_password": "RotatedPass1!"},
+        json={"old_password": "definitely-wrong", "new_password": "RotatedPass1!"},
     )
-    assert r.status_code == 200
-    # Old password no longer works
-    bad = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "StrongPass1!"})
-    assert bad.status_code == 401
-    # Restore
-    client.post("/api/auth/login", json={"email": "admin@example.com", "password": "RotatedPass1!"})
-    r2 = client.post(
-        "/api/auth/change-password",
-        headers=admin_headers,
-        json={"old_password": "RotatedPass1!", "new_password": "StrongPass1!"},
-    )
-    assert r2.status_code == 200
-
-
-def test_unauthenticated_requests_rejected(client):
-    assert client.get("/api/auth/me").status_code == 401
-    assert client.get("/api/projects").status_code == 401
+    assert r.status_code == 400
 
 
 def test_password_too_short(client):
-    r = client.post("/api/auth/setup-admin", json={"name": "X", "email": "x@example.com", "password": "short"})
+    r = client.post(
+        "/api/auth/setup-admin",
+        json={"name": "X", "email": "x@example.com", "password": "short"},
+    )
     assert r.status_code == 422

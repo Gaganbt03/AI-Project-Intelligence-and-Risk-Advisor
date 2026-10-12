@@ -46,29 +46,32 @@ class ScopeSchema(BaseModel):
 class RiskSchema(BaseModel):
     title: str = ""
     description: str = ""
-    severity: str = "Medium"
-    probability: str = "Medium"
-    impact: str = "Medium"
+    severity: str = ""
+    probability: str = ""
+    impact: str = ""
     evidence: str = ""
     source_document: str = ""
     source_page: Optional[int] = None
     source_section: Optional[str] = None
     recommended_action: str = ""
 
-    @field_validator("severity", "probability", "impact")
+    @field_validator("severity")
     @classmethod
-    def cap_level(cls, v: str) -> str:
-        allowed = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}
-        u = (v or "").upper()
-        if u not in allowed and u != "CRITICAL":
-            u = "MEDIUM" if u not in allowed else u
-        return u if u in allowed else "MEDIUM"
+    def cap_severity(cls, v: str) -> str:
+        u = (v or "").strip().upper()
+        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else ""
+
+    @field_validator("probability", "impact")
+    @classmethod
+    def cap_probability_impact(cls, v: str) -> str:
+        u = (v or "").strip().upper()
+        return u if u in {"LOW", "MEDIUM", "HIGH"} else ""
 
 
 class BlockerSchema(BaseModel):
     title: str = ""
     description: str = ""
-    severity: str = "Medium"
+    severity: str = ""
     owner: str = ""
     evidence: str = ""
     source_document: str = ""
@@ -79,15 +82,16 @@ class BlockerSchema(BaseModel):
     @field_validator("severity")
     @classmethod
     def cap_severity(cls, v: str) -> str:
-        u = (v or "").upper()
-        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else "MEDIUM"
+        u = (v or "").strip().upper()
+        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else ""
 
 
 class ActionItemSchema(BaseModel):
     action: str = ""
     assigned_person: str = ""
     deadline: Optional[str] = None
-    priority: str = "Medium"
+    priority: str = ""
+    evidence: str = ""
     source_document: str = ""
     source_page: Optional[int] = None
     source_section: Optional[str] = None
@@ -95,27 +99,27 @@ class ActionItemSchema(BaseModel):
     @field_validator("priority")
     @classmethod
     def cap_priority(cls, v: str) -> str:
-        u = (v or "").upper()
-        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else "MEDIUM"
+        u = (v or "").strip().upper()
+        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else ""
 
 
 class ForecastFactor(BaseModel):
     factor: str = ""
     impact: str = ""
-    severity: str = "Medium"
+    severity: str = ""
 
     @field_validator("severity")
     @classmethod
     def cap(cls, v: str) -> str:
-        u = (v or "").upper()
-        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else "MEDIUM"
+        u = (v or "").strip().upper()
+        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else ""
 
 
 class ForecastSchema(BaseModel):
     current_status: str = ""
     schedule_status: str = ""          # On Track / Minor Risk / Significant Risk / At Risk
     expected_delivery: str = ""
-    risk_level: str = "Medium"
+    risk_level: str = ""
     factors: list[ForecastFactor] = Field(default_factory=list)
     evidence: list[SourceRef] = Field(default_factory=list)
     caveat: str = "Forecast is an AI analysis, not a precise prediction."
@@ -123,8 +127,8 @@ class ForecastSchema(BaseModel):
     @field_validator("risk_level")
     @classmethod
     def cap(cls, v: str) -> str:
-        u = (v or "").upper()
-        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else "MEDIUM"
+        u = (v or "").strip().upper()
+        return u if u in {"LOW", "MEDIUM", "HIGH", "CRITICAL"} else ""
 
 
 class ScopeAgentResult(BaseModel):
@@ -154,9 +158,7 @@ class ActionItemAgentResult(BaseModel):
 # Helper: repair levels into allowed tokens
 def normalize_level(value: str, allowed: list[str]) -> str:
     u = (value or "").strip().upper()
-    if u not in allowed:
-        return allowed[1]
-    return u
+    return u if u in allowed else ""
 
 
 class CategoryInsight(BaseModel):

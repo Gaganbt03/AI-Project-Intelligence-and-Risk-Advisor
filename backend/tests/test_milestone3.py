@@ -37,26 +37,18 @@ from app.services.milestone3.validation import EICAR, preflight_upload, validate
 
 
 @pytest.fixture(scope="module")
-def seeded(client, admin_headers):
-    """A project with a full set of M3-relevant rows, created through the API."""
-    r = client.post(
-        "/api/projects",
-        headers=admin_headers,
-        json={
-            "name": "Milestone Three Project",
-            "description": "M3 fixture",
-            "objective": "Prove the milestone three agents work",
-            "priority": "High",
-            "status": "Active",
-            "member_ids": [],
-        },
-    )
-    assert r.status_code == 201, r.text
-    project = r.json()
-    pid = project["id"]
+def seeded(client):
+    """A workspace project with a full set of M3-relevant rows.
+
+    The shared ``client`` is bound to a fresh anonymous workspace (projects are
+    no longer created through the API), then the M3 rows are seeded directly.
+    """
+    from conftest import start_workspace
+
+    pid = start_workspace(client)
+    project = {"id": pid, "name": "Milestone Three Project"}
 
     with SessionLocal() as db:
-        p = db.query(Project).filter(Project.id == pid).first()
         db.add_all(
             [
                 Risk(project_id=pid, title="Gateway delay", severity="High",
@@ -189,20 +181,18 @@ def test_health_overall_is_the_published_weighted_average():
     assert partial == 70.6
 
 
-def test_health_no_data_project_skips_optional_dimensions(client, admin_headers):
-    r = client.post("/api/projects", headers=admin_headers,
-                    json={"name": "Empty Health Project", "description": "", "objective": "",
-                          "priority": "Low", "status": "Planning", "member_ids": []})
-    assert r.status_code == 201
-    pid = r.json()["id"]
-    body = client.get(f"/api/projects/{pid}/health?explain=false", headers=admin_headers).json()
+def test_health_no_data_project_skips_optional_dimensions(fresh_client, admin_headers):
+    pid = fresh_client.get("/api/session/current").json()["project_id"]
+    body = fresh_client.get(f"/api/projects/{pid}/health?explain=false", headers=admin_headers).json()
     assert "risk_exposure" in body["skipped_dimensions"]
     assert "deliverable_progress" in body["skipped_dimensions"]
     assert body["data_completeness"] < 50
 
 
-def test_health_is_rbac_protected(client, employee_headers, project_b):
-    assert client.get(f"/api/projects/{project_b['id']}/health", headers=employee_headers).status_code == 200
+def test_health_is_isolated_per_workspace(client, employee_headers, project_b):
+    # A workspace other than the caller's own is invisible.
+    assert client.get(f"/api/projects/{project_b['id']}/health",
+                      headers=employee_headers).status_code == 404
 
 
 # --------------------------------------------------------------------------- #
@@ -210,10 +200,9 @@ def test_health_is_rbac_protected(client, employee_headers, project_b):
 # --------------------------------------------------------------------------- #
 
 
-def test_risk_register_reuses_existing_risks_without_inventing():
+def test_risk_register_reuses_existing_risks_without_inventing(seeded_project_id):
     with SessionLocal() as db:
-        from app.models import Project as P
-        p = db.query(P).filter(P.name == "Milestone Three Project").first()
+        p = db.query(Project).filter(Project.id == seeded_project_id).first()
         register = build_risk_register(db, p)
 
     titles = {e["title"] for e in register["entries"]}
@@ -228,10 +217,9 @@ def test_risk_register_reuses_existing_risks_without_inventing():
     assert register["entries"][0]["risk_score"] >= register["entries"][-1]["risk_score"]
 
 
-def test_action_items_cover_tasks_and_blockers_once():
+def test_action_items_cover_tasks_and_blockers_once(seeded_project_id):
     with SessionLocal() as db:
-        from app.models import Project as P
-        p = db.query(P).filter(P.name == "Milestone Three Project").first()
+        p = db.query(Project).filter(Project.id == seeded_project_id).first()
         items = build_action_items(db, p)
 
     ids = [e["action_id"] for e in items["entries"]]
@@ -259,7 +247,7 @@ def test_generate_deterministic_document_endpoint(client, admin_headers, seeded_
                         headers=admin_headers)
     assert detail.status_code == 200
     content = detail.json()["content"]
-    assert content.startswith("# Risk Register")
+    assert content.startswith("# PROJECT RISK REGISTER")
     assert "Gateway delay" in content
 
 
@@ -306,9 +294,10 @@ def test_generate_rejects_unknown_type(client, admin_headers, seeded_project_id)
     assert "Unknown doc_type" in r.json()["detail"]
 
 
-def test_documentation_is_rbac_protected(client, employee_headers, project_b):
-    # All authenticated users may access project documentation in single-tier model
-    assert client.get(f"/api/projects/{project_b['id']}/documents", headers=employee_headers).status_code == 200
+def test_documentation_is_isolated_per_workspace(client, employee_headers, project_b):
+    # Another workspace's documents are not reachable from this session.
+    assert client.get(f"/api/projects/{project_b['id']}/documents",
+                      headers=employee_headers).status_code == 404
 
 def test_generated_document_from_another_project_is_not_readable(client, admin_headers,
                                                                  employee_headers, seeded_project_id,
@@ -376,7 +365,7 @@ def test_assistant_uses_exact_insufficient_evidence_phrase(client, admin_headers
     assert r.json()["grounded"] is False
 
 
-def test_assistant_refuses_without_calling_the_model(client, admin_headers, monkeypatch):
+def test_assistant_refuses_without_calling_the_model(fresh_client, admin_headers, monkeypatch):
     called = {"n": 0}
 
     class Manager:
@@ -384,12 +373,7 @@ def test_assistant_refuses_without_calling_the_model(client, admin_headers, monk
             called["n"] += 1
             return ("should not happen", "stub", "s")
 
-    created = client.post("/api/projects", headers=admin_headers,
-                          json={"name": "Assistant No Evidence Project", "description": "",
-                                "objective": "", "priority": "Low", "status": "Planning",
-                                "member_ids": []})
-    assert created.status_code == 201
-    pid = created.json()["id"]
+    pid = fresh_client.get("/api/session/current").json()["project_id"]
 
     monkeypatch.setattr(assistant_service, "retrieve_chunks", lambda *a, **k: [])
     monkeypatch.setattr(assistant_service, "get_provider_manager", lambda: Manager())
@@ -444,10 +428,10 @@ def test_assistant_conversations_are_project_scoped(client, admin_headers, seede
     assert r.status_code == 404
 
 
-def test_assistant_is_rbac_protected(client, employee_headers, project_b):
+def test_assistant_is_isolated_per_workspace(client, employee_headers, project_b):
     r = client.post(f"/api/projects/{project_b['id']}/assistant/ask", headers=employee_headers,
                     json={"question": "hello"})
-    assert r.status_code == 200
+    assert r.status_code == 404
 
 
 def test_conversation_messages_are_persisted_with_evidence(client, admin_headers,
@@ -611,29 +595,19 @@ ACTION_CHUNK = (
 
 
 @pytest.fixture()
-def labelled_project(client, admin_headers, admin):
+def labelled_project(client, admin_headers):
     """A project whose documents label risks, blockers and actions in one chunk.
 
     Milestone 2 filed B001/B002/A001..A003 in the ``risks`` table, which is the
-    real-world situation this fixture reproduces.
+    real-world situation this fixture reproduces. Binds the shared ``client`` to
+    a fresh workspace (project creation over the API is gone).
     """
-    r = client.post(
-        "/api/projects",
-        headers=admin_headers,
-        json={
-            "name": "Labelled Entities Project",
-            "description": "documents label every entity in one chunk",
-            "objective": "Prove per-entity extraction",
-            "priority": "High",
-            "status": "Active",
-            "member_ids": [],
-        },
-    )
-    assert r.status_code == 201, r.text
-    pid = r.json()["id"]
+    from conftest import _actor, start_workspace
+
+    pid = start_workspace(client)
+    uploaded_by = _actor()["id"]
 
     with SessionLocal() as db:
-        project = db.query(Project).filter(Project.id == pid).first()
         docs = [
             ("02_Requirements.docx", DOCX_CHUNK),
             ("03_Requirements.docx", BLOCKER_CHUNK),
@@ -645,7 +619,7 @@ def labelled_project(client, admin_headers, admin):
                 file_type="docx", mime_type="application/vnd.openxmlformats-officedocument."
                                                "wordprocessingml.document",
                 file_size=len(text.encode("utf-8")),
-                storage_path=f"uploads/{pid}/{name}.stored", uploaded_by=admin["user"]["id"],
+                storage_path=f"uploads/{pid}/{name}.stored", uploaded_by=uploaded_by,
                 status="Processed", extracted_text=text, chunk_count=1,
             )
             db.add(document)
@@ -871,7 +845,7 @@ def test_download_docx_returns_a_real_office_document(client, admin_headers, lab
         assert zf.testzip() is None
         document_xml = zf.read("word/document.xml").decode("utf-8")
     # Headings, a real table and the risk content are present as text.
-    assert "Risk Register" in document_xml
+    assert "PROJECT RISK REGISTER" in document_xml
     assert "R001" in document_xml
     assert "Add retry and reconnect logic" in document_xml
 

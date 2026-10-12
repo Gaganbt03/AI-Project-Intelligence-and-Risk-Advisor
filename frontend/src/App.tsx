@@ -1,12 +1,6 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { useAuth } from './auth/AuthContext';
-import { Spinner } from './components/EmptyState';
 
-import Login from './pages/auth/Login';
-import SetupAdmin from './pages/auth/SetupAdmin';
-
-import AdminDashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 
@@ -18,23 +12,8 @@ import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
 import ReportBlocker from './pages/ReportBlocker';
 import Assistant from './pages/Assistant';
-
-function Protected({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  if (loading) return <Spinner label="Checking session…" />;
-  if (!user) return <Navigate to="/auth/login" replace />;
-  if (false) {
-    return <Navigate to="/" replace />;
-  }
-  return <>{children}</>;
-}
-
-function AuthHome() {
-  const { user, loading } = useAuth();
-  if (loading) return <Spinner label="Loading…" />;
-  if (user) return <Navigate to="/" replace />;
-  return <Navigate to="/auth/login" replace />;
-}
+import { EmptyState, Spinner } from './components/EmptyState';
+import { useWorkspace } from './workspace/WorkspaceContext';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -44,27 +23,45 @@ function ScrollToTop() {
   return null;
 }
 
+/** Landing screen: the workspace's own Documents upload view. */
+function WorkspaceHome() {
+  const { projectId } = useWorkspace();
+  if (!projectId) return null;
+  return <Navigate to={`/projects/${projectId}`} replace />;
+}
+
 export default function App() {
+  const { loading, error, retry } = useWorkspace();
+
+  if (loading) {
+    return <Spinner label="Preparing your private workspace…" />;
+  }
+  if (error) {
+    return (
+      <EmptyState
+        title="Workspace unavailable"
+        description={error}
+        action={<button className="btn btn-primary" onClick={retry}>Try again</button>}
+      />
+    );
+  }
+
   return (
     <>
       <ScrollToTop />
       <Routes>
-        <Route path="/auth/login" element={<Login />} />
-        <Route path="/auth/setup" element={<SetupAdmin />} />
-        <Route path="/auth" element={<AuthHome />} />
+        <Route path="/" element={<WorkspaceHome />} />
+        <Route path="/projects" element={<Projects />} />
+        <Route path="/projects/:id" element={<ProjectDetail />} />
+        <Route path="/documents" element={<Documents />} />
+        <Route path="/tasks" element={<Tasks />} />
+        <Route path="/risks" element={<RisksPage />} />
+        <Route path="/blockers" element={<BlockersPage />} />
+        <Route path="/report-blocker" element={<ReportBlocker />} />
+        <Route path="/assistant" element={<Assistant />} />
 
-        <Route path="/" element={<Protected><AdminDashboard /></Protected>} />
-        <Route path="/projects" element={<Protected><Projects /></Protected>} />
-        <Route path="/projects/:id" element={<Protected><ProjectDetail /></Protected>} />
-        <Route path="/documents" element={<Protected><Documents /></Protected>} />
-        <Route path="/tasks" element={<Protected><Tasks /></Protected>} />
-        <Route path="/risks" element={<Protected><RisksPage /></Protected>} />
-        <Route path="/blockers" element={<Protected><BlockersPage /></Protected>} />
-        <Route path="/report-blocker" element={<Protected><ReportBlocker /></Protected>} />
-        <Route path="/assistant" element={<Protected><Assistant /></Protected>} />
-
-        <Route path="/audit-logs" element={<Protected ><AuditLogs /></Protected>} />
-        <Route path="/profile" element={<Protected><Profile /></Protected>} />
+        <Route path="/audit-logs" element={<AuditLogs />} />
+        <Route path="/profile" element={<Profile />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

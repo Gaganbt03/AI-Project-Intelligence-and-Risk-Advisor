@@ -1,8 +1,10 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.database import SessionLocal, init_db
@@ -15,6 +17,32 @@ settings = get_settings()
 settings.ensure_dirs()
 
 
+def _sweep_workspaces_once() -> dict:
+    """Purge closing/expired workspaces in its own DB session (threadpool)."""
+    from app.services import sessions as session_service
+
+    with SessionLocal() as db:
+        return session_service.sweep_workspaces(db)
+
+
+async def _workspace_sweeper() -> None:
+    """Background loop reclaiming abandoned workspaces.
+
+    Covers missed browser-close signals and crashes, which no client can report.
+    """
+    interval = max(5, settings.WORKSPACE_SWEEP_INTERVAL_SECONDS)
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            result = await run_in_threadpool(_sweep_workspaces_once)
+            if result.get("closed") or result.get("expired"):
+                logger.info("Workspace sweeper purged: %s", result)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - a failed sweep must not kill the loop
+            logger.exception("Workspace sweeper iteration failed")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
@@ -25,7 +53,15 @@ async def lifespan(_app: FastAPI):
             logger.info("First account created from environment: %s", first_user.email)
         else:
             logger.info("No environment-based account created (existing users or unset env).")
-    yield
+    sweeper = asyncio.create_task(_workspace_sweeper())
+    try:
+        yield
+    finally:
+        sweeper.cancel()
+        try:
+            await sweeper
+        except asyncio.CancelledError:
+            pass
 
 
 def create_app() -> FastAPI:
@@ -60,12 +96,14 @@ def create_app() -> FastAPI:
         projects,
         risks,
         settings as settings_router,
+        sessions,
         tasks,
         users,
     )
 
     api_prefix = "/api"
     application.include_router(auth.router, prefix=api_prefix)
+    application.include_router(sessions.router, prefix=api_prefix)
     application.include_router(users.router, prefix=api_prefix)
     application.include_router(projects.router, prefix=api_prefix)
     application.include_router(documents.router, prefix=api_prefix)

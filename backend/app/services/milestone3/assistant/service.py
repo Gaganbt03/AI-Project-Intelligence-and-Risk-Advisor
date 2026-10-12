@@ -65,6 +65,9 @@ ASSISTANT_SYSTEM_M3 = (
     "answer, reply with exactly: " + INSUFFICIENT_EVIDENCE + "\n"
     "- When a fact is absent, write: " + NOT_SPECIFIED + "\n"
     "- Cite the document name and page/row for any claim taken from a source block.\n"
+    "- Distinguish documented facts from your own suggestions. Never present a "
+    "recommendation, inference or forecast as something a source document states; label "
+    "any suggestion you add explicitly (for example \"Recommendation:\").\n"
     "- Keep answers concise and specific to this project. Never speculate about "
     "other projects."
 )
@@ -353,9 +356,13 @@ def answer(
         )
 
     answer_text = (answer_text or "").strip()
-    grounded = bool(chunks) or bool(hints) or bool(history)
-    # The model may still decline; treat its own exact refusal as ungrounded.
-    if INSUFFICIENT_EVIDENCE.lower() in answer_text.lower():
+    # Grounding reflects real project evidence only: retrieved documents, or a
+    # matching structured table. Prior conversation turns keep the thread going
+    # but are not, on their own, project evidence, so they never make an answer
+    # "grounded".
+    grounded = bool(chunks) or bool(hints)
+    # The model may still decline (or return nothing); neither is grounded.
+    if not answer_text or INSUFFICIENT_EVIDENCE.lower() in answer_text.lower():
         answer_text = INSUFFICIENT_EVIDENCE
         grounded = False
 

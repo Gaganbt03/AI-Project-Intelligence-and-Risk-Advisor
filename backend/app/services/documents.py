@@ -6,10 +6,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import Blocker, DocumentChunk, ProjectDocument, Risk, Task
+from app.models import Blocker, DocumentChunk, Project, ProjectDocument, Risk, Task
 from app.services.audit import log_event
 from app.services.chunking import chunk_sections
 from app.services.embeddings import EmbeddingError, get_embedding_provider
@@ -276,10 +277,36 @@ def process_and_analyze(
     once the document is indexed; a question, conversation or message is only
     ever produced by an explicit user request through the assistant endpoints.
     """
-    doc = reprocess_document(db, document_id, audit_request=audit_request) if reprocess else (
-        process_document(db, document_id, audit_request=audit_request)
+    # Race guard: the upload background task can outlive its workspace. If the
+    # session was finished/swept between scheduling and execution, the document
+    # (and often its project) is already gone; re-ingesting would only recreate
+    # orphaned rows or trip a foreign-key error. Bail out quietly instead.
+    existing = (
+        db.query(ProjectDocument).filter(ProjectDocument.id == document_id).first()
     )
+    if existing is None:
+        logger.info("Skipping pipeline: document %s no longer exists (workspace closed).", document_id)
+        return None
+    project_id = existing.project_id
+    if db.query(Project.id).filter(Project.id == project_id).first() is None:
+        logger.info("Skipping pipeline: workspace project %s no longer exists.", project_id)
+        return None
+
+    try:
+        doc = reprocess_document(db, document_id, audit_request=audit_request) if reprocess else (
+            process_document(db, document_id, audit_request=audit_request)
+        )
+    except (DocumentUploadError, IntegrityError):
+        # The workspace was purged mid-ingestion; nothing left to analyse.
+        logger.info("Aborting pipeline for document %s (workspace closed mid-run).", document_id)
+        db.rollback()
+        return None
+
     if not run_analysis or doc.status != "Processed":
+        return doc
+
+    if db.query(Project.id).filter(Project.id == project_id).first() is None:
+        logger.info("Skipping analysis: workspace project %s no longer exists.", project_id)
         return doc
 
     from app.services.pipeline import run_project_pipeline

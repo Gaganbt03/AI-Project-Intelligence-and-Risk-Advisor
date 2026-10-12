@@ -110,12 +110,30 @@ class Grounding:
     document_text: str = ""
     rag_text: str = ""
     structured_text: str = ""
+    #: File names of the documents that belong to this project. A citation is a
+    #: file name, not a span of the text it names, so it is checked against these
+    #: names rather than against the document body.
+    document_names: list[str] = field(default_factory=list)
 
     def all_text(self) -> str:
         return "\n".join(t for t in (self.document_text, self.rag_text, self.structured_text) if t)
 
     def is_empty(self) -> bool:
         return not self.all_text().strip()
+
+    def knows_document(self, name: str) -> bool:
+        """True when ``name`` is one of this project's known document file names.
+
+        Accepts a bare file name or a path and compares case-insensitively.
+        """
+        candidate = normalize_space(name).lower().replace("\\", "/").rsplit("/", 1)[-1]
+        if not candidate:
+            return False
+        for known in self.document_names:
+            k = normalize_space(known).lower().replace("\\", "/").rsplit("/", 1)[-1]
+            if k and k == candidate:
+                return True
+        return False
 
 
 @dataclass
@@ -539,10 +557,11 @@ def validate_story(
         source=source_document,
     )
 
-    # Source attribution must name a document that actually belongs to this project.
+    # Source attribution must name a document that actually belongs to this
+    # project. A file name is not a span of the document body, so it is checked
+    # against the project's known document names, never against the text.
     named = normalize_space(story.get("source_document", ""))
-    haystack = grounding.document_text.lower()
-    if named and named.lower() in haystack:
+    if named and grounding.knows_document(named):
         v.record(name("source_document"), FieldVerdict.SUPPORTED, named, named)
     elif named:
         v.record(name("source_document"), FieldVerdict.UNSUPPORTED, named, named,

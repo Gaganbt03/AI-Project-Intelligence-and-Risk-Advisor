@@ -475,30 +475,51 @@ def build_risk_entry(
              "Classified from the recorded risk text.")
 
     # -- Probability / Impact / Severity ----------------------------------- #
-    probability = (risk.probability or "").strip().title() or "Medium"
-    impact = (risk.impact or "").strip().title() or "Medium"
-    severity = (risk.severity or "").strip().title() or "Medium"
+    # A level the project never recorded is reported as unspecified. It is never
+    # defaulted to "Medium" (or any other value the records do not state).
+    probability = normalize_space(risk.probability or "").title() or NOT_SPECIFIED
+    impact = normalize_space(risk.impact or "").title() or NOT_SPECIFIED
+    severity = normalize_space(risk.severity or "").title() or NOT_SPECIFIED
 
-    if record:
-        validation.record_conflicting_record(v, "probability", probability,
-                                             record.value("probability"),
-                                             source=field_source)
-        validation.record_conflicting_record(v, "impact", impact, record.value("impact"),
-                                             source=field_source)
+    def _record_level(field_name: str, value: str, document_value: str) -> None:
+        if value == NOT_SPECIFIED:
+            v.record(field_name, validation.FieldVerdict.MISSING, NOT_SPECIFIED, "",
+                     "No level recorded in the project data.")
+        elif record:
+            validation.record_conflicting_record(v, field_name, value, document_value,
+                                                 source=field_source)
+        else:
+            v.record(field_name, validation.FieldVerdict.SUPPORTED, value, "",
+                     f"{field_name.capitalize()} preserved from the recorded risk assessment.")
+
+    _record_level("probability", probability, record.value("probability") if record else "")
+    _record_level("impact", impact, record.value("impact") if record else "")
+    _record_level("severity", severity, record.value("severity") if record else "")
+
+    # The score is a calculated metric: it is only produced when all three inputs
+    # exist. With an input missing the score stays unspecified rather than being
+    # computed from a fabricated baseline.
+    levels_recorded = (
+        probability != NOT_SPECIFIED
+        and impact != NOT_SPECIFIED
+        and severity != NOT_SPECIFIED
+    )
+    if levels_recorded:
+        score_value = severity_score(risk.severity, risk.probability, risk.impact)
+        severity_band_value = risk_band(score_value)
+        v.record("score", validation.FieldVerdict.SUPPORTED, f"{score_value}/{SCORE_MAX}", "",
+                 "Deterministically computed from the recorded severity, probability and impact.")
     else:
-        v.record("probability", validation.FieldVerdict.SUPPORTED, probability, "",
-                 "Probability preserved from the recorded risk assessment.")
-        v.record("impact", validation.FieldVerdict.SUPPORTED, impact, "",
-                 "Impact preserved from the recorded risk assessment.")
+        score_value = 0
+        severity_band_value = NOT_SPECIFIED
+        v.record("score", validation.FieldVerdict.MISSING, NOT_SPECIFIED, "",
+                 "Not computed: severity, probability or impact is not recorded.")
 
-    score = severity_score(risk.severity, risk.probability, risk.impact)
-    v.record("score", validation.FieldVerdict.SUPPORTED, f"{score}/{SCORE_MAX}", "",
-             "Deterministically computed from the recorded severity, probability and impact.")
-    v.record("severity", validation.FieldVerdict.SUPPORTED, severity, "",
-             "Severity preserved from the recorded risk assessment.")
-
-    status = normalize_space(risk.status or "") or "Open"
-    if record:
+    status = normalize_space(risk.status or "") or NOT_SPECIFIED
+    if status == NOT_SPECIFIED:
+        v.record("status", validation.FieldVerdict.MISSING, NOT_SPECIFIED, "",
+                 "No status recorded in the project data.")
+    elif record:
         validation.record_conflicting_record(v, "status", status, record.value("status"),
                                              source=field_source)
     else:
@@ -586,11 +607,12 @@ def build_risk_entry(
         "category": category,
         "probability": probability,
         "impact": impact,
-        "risk_score": score,
+        "risk_score": score_value if levels_recorded else NOT_SPECIFIED,
+        "risk_score_value": score_value,
         "risk_score_max": SCORE_MAX,
         "severity": severity,
-        "severity_band": risk_band(score),
-        "probability_level": level(risk.probability),
+        "severity_band": severity_band_value,
+        "probability_level": level(risk.probability) if (risk.probability or "").strip() else "",
         "status": status,
         "owner": owner,
         "mitigation": mitigation,
@@ -667,7 +689,7 @@ def build_risk_register(db, project: Project) -> dict:
         entries.append(entry)
         validators.append(v)
 
-    entries.sort(key=lambda e: (-e["risk_score"], e["risk_id"]))
+    entries.sort(key=lambda e: (-e["risk_score_value"], e["risk_id"]))
 
     counts: dict[str, int] = {}
     for e in entries:
@@ -683,8 +705,8 @@ def build_risk_register(db, project: Project) -> dict:
         "project_id": project.id,
         "total": len(entries),
         "counts_by_band": counts,
-        "max_score": max((e["risk_score"] for e in entries), default=0),
-        "total_exposure": sum(e["risk_score"] for e in entries),
+        "max_score": max((e["risk_score_value"] for e in entries), default=0),
+        "total_exposure": sum(e["risk_score_value"] for e in entries),
         "entries": entries,
         "excluded": excluded,
         "insufficient_evidence": not entries,
@@ -694,7 +716,9 @@ def build_risk_register(db, project: Project) -> dict:
         "notes": [
             "Risk Score = severity x probability x impact, each mapped to "
             "CRITICAL/HIGH/MEDIUM/LOW (10/6/3/1) and HIGH/MEDIUM/LOW (3/2/1), "
-            f"clamped to 1-{SCORE_MAX}. Computed deterministically from stored values.",
+            f"clamped to 1-{SCORE_MAX}. Computed deterministically from stored values, and "
+            f"only when severity, probability and impact are all recorded; otherwise it reads "
+            f"'{NOT_SPECIFIED}' rather than assuming a level.",
             "The register contains risks only. Records the source documents label as "
             "blockers (B...) or action items (A...) are listed under 'excluded' and are "
             "kept in their own category — they are never converted into risks.",

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft, FolderKanban, FileText, ListChecks, TriangleAlert, CircleSlash,
-  Bot, ArrowRight, Calendar, Activity, BookOpen,
+  Bot, ArrowRight, Calendar, Activity, BookOpen, Trash2,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { AppShell } from '../layout/AppShell';
@@ -10,6 +10,7 @@ import { PageLoader } from '../components/EmptyState';
 import { Badge, SeverityBadge, statusTone } from '../components/Badge';
 import { useToast } from '../ui/ToastContext';
 import { useAuth } from '../auth/AuthContext';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 import { fmtDateOnly } from '../utils/format';
 import { DocsPanel } from '../panels/DocsPanel';
 import { TasksPanel } from '../panels/TasksPanel';
@@ -20,9 +21,8 @@ import { HealthPanel } from '../panels/HealthPanel';
 import { GeneratedDocsPanel } from '../panels/GeneratedDocsPanel';
 
 const TABS = [
-  { key: 'overview', label: 'Overview', icon: <FolderKanban size={15} /> },
-  { key: 'health', label: 'Health', icon: <Activity size={15} /> },
   { key: 'documents', label: 'Documents', icon: <FileText size={15} /> },
+  { key: 'health', label: 'Health', icon: <Activity size={15} /> },
   { key: 'generated', label: 'Generated Docs', icon: <BookOpen size={15} /> },
   { key: 'tasks', label: 'Tasks', icon: <ListChecks size={15} /> },
   { key: 'risks', label: 'Risks', icon: <TriangleAlert size={15} /> },
@@ -34,12 +34,21 @@ export default function ProjectDetail() {
   const { id } = useParams();
   const pid = Number(id);
   const { user } = useAuth();
+  const { finish } = useWorkspace();
   const isAdmin = true;
   const [project, setProject] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<any[]>([]);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState('documents');
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+
+  const handleFinish = useCallback(async () => {
+    const ok = window.confirm(
+      'Finish and permanently delete this workspace and all its uploaded data? This cannot be undone.',
+    );
+    if (!ok) return;
+    await finish();
+  }, [finish]);
 
   const load = useCallback(async () => {
     try {
@@ -125,7 +134,12 @@ export default function ProjectDetail() {
             </div>
           </div>
         </div>
-        <Link to="/projects" className="btn btn-secondary btn-sm"><ArrowRight size={14} /> All Projects</Link>
+        <div className="row gap-sm">
+          <Link to="/projects" className="btn btn-secondary btn-sm"><ArrowRight size={14} /> All Projects</Link>
+          <button className="btn btn-danger btn-sm" onClick={handleFinish} title="Delete this workspace and all its data">
+            <Trash2 size={14} /> Finish &amp; Clear Session
+          </button>
+        </div>
       </div>
 
       <div className="tabs">

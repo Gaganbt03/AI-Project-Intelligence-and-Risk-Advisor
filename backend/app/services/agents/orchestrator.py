@@ -87,6 +87,66 @@ def _find_doc_id(map_: dict[str, int], name: str) -> int | None:
     return map_.get(name.strip().lower())
 
 
+def _chunk_text(chunks: list[dict]) -> str:
+    return "\n".join((c.get("text") or "") for c in chunks)
+
+
+def _evidence_supported(quote: str, haystack: str) -> bool:
+    """True when ``quote`` is a real span of the retrieved chunk text.
+
+    A verbatim substring always passes; otherwise every distinctive word of the
+    quote must be present, so a claim with no vocabulary in common with the
+    documents is rejected rather than stored.
+    """
+    from app.services.milestone3.documentation.extraction import significant_words
+
+    q = (quote or "").strip()
+    if not q or not haystack.strip():
+        return False
+    if q.lower() in haystack.lower():
+        return True
+    words = significant_words(q)
+    if not words:
+        return False
+    lowered = haystack.lower()
+    return all(w in lowered for w in words)
+
+
+def _resolve_evidence_document(quote: str, chunks: list[dict]) -> int | None:
+    """The id of the document whose chunk contains ``quote``."""
+    q = (quote or "").strip().lower()
+    if not q:
+        return None
+    for c in chunks:
+        text = (c.get("text") or "").lower()
+        if text and q in text:
+            doc_id = _int_or_none(c.get("document_id"))
+            if doc_id is not None:
+                return doc_id
+    return None
+
+
+def _verified_source(
+    item, chunks: list[dict], doc_map: dict[str, int], haystack: str
+) -> tuple[bool, int | None]:
+    """Validate one extracted record against the retrieved chunks.
+
+    Returns ``(verified, source_document_id)``. A record is verified only when
+    its evidence is a traceable span of the retrieved text and any cited
+    document resolves to a real upload in this project. When the model cites no
+    document, the document that actually contains the evidence is used instead.
+    """
+    if not _evidence_supported(getattr(item, "evidence", ""), haystack):
+        return False, None
+    named = (getattr(item, "source_document", "") or "").strip()
+    if named:
+        source_id = _find_doc_id(doc_map, named)
+        if source_id is None:
+            return False, None
+        return True, source_id
+    return True, _resolve_evidence_document(getattr(item, "evidence", ""), chunks)
+
+
 def persist_scope(db: Session, project_id: int, run_id: int, result, chunks: list[dict]) -> int:
     refs = _source_refs(chunks)
     if not result:
@@ -130,10 +190,15 @@ def persist_risks(db: Session, project_id: int, run_id: int, result, chunks: lis
         return 0
     doc_map = _doc_id_map(db, project_id)
     refs = _source_refs(chunks)
+    haystack = _chunk_text(chunks)
     count = 0
     for r in result.risks:
-        source_id = _find_doc_id(doc_map, r.source_document)
-        evidence = r.evidence or "Evidence not found in uploaded documents."
+        verified, source_id = _verified_source(r, chunks, doc_map, haystack)
+        if not verified:
+            logger.warning(
+                "Dropping unverified AI risk (no traceable evidence): %r", r.title
+            )
+            continue
         risk = Risk(
             project_id=project_id,
             title=(r.title or "Risk")[:255],
@@ -141,7 +206,7 @@ def persist_risks(db: Session, project_id: int, run_id: int, result, chunks: lis
             severity=r.severity,
             probability=r.probability,
             impact=r.impact,
-            evidence=evidence,
+            evidence=r.evidence or "",
             source_document_id=source_id,
             recommended_action=r.recommended_action or "",
             status="Open",
@@ -166,9 +231,15 @@ def persist_blockers(db: Session, project_id: int, run_id: int, result, chunks: 
         return 0
     doc_map = _doc_id_map(db, project_id)
     refs = _source_refs(chunks)
+    haystack = _chunk_text(chunks)
     count = 0
     for b in result.blockers:
-        source_id = _find_doc_id(doc_map, b.source_document)
+        verified, source_id = _verified_source(b, chunks, doc_map, haystack)
+        if not verified:
+            logger.warning(
+                "Dropping unverified AI blocker (no traceable evidence): %r", b.title
+            )
+            continue
         blocker = Blocker(
             project_id=project_id,
             title=(b.title or "Blocker")[:255],
@@ -217,9 +288,16 @@ def persist_actions(db: Session, project_id: int, run_id: int, result, chunks: l
     doc_map = _doc_id_map(db, project_id)
     name_map = _member_name_map(db, project_id)
     refs = _source_refs(chunks)
+    haystack = _chunk_text(chunks)
     count = 0
     for item in result.action_items:
-        source_id = _find_doc_id(doc_map, (item.source_document or ""))
+        verified, source_id = _verified_source(item, chunks, doc_map, haystack)
+        if not verified:
+            logger.warning(
+                "Dropping unverified AI action item (no traceable evidence): %r",
+                item.action,
+            )
+            continue
         assigned_to = name_map.get((item.assigned_person or "").strip().lower())
         desc = item.assigned_person or ""
         if assigned_to is None and desc:
@@ -303,6 +381,12 @@ def persist_health_metrics(db: Session, project_id: int) -> dict:
         "total_tasks": stats["total_tasks"],
         "edge": "health scoring service can compute a transparent score later",
     }
+    # One run writes exactly one health row. Replacing any previous row keeps a
+    # project from accumulating duplicate health metrics across repeated analyses.
+    db.query(ProjectInsight).filter(
+        ProjectInsight.project_id == project_id,
+        ProjectInsight.agent == "health",
+    ).delete(synchronize_session=False)
     db.add(
         ProjectInsight(
             project_id=project_id, agent="health", category="metrics",

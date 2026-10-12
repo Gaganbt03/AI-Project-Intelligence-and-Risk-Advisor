@@ -118,13 +118,31 @@ def _clean_benefit(benefit: str) -> str:
     return b.rstrip(".")
 
 
-def _pick_source(story: UserStory, evidence: list[EvidenceItem], allowed: set[str]) -> str:
-    """Attribute a story to a document that is actually in this project."""
+def _pick_source(story: UserStory, chunks: list[dict], evidence: list[EvidenceItem]) -> str:
+    """Attribute a story to the document the requirement was actually read from.
+
+    A file name the model copied from a SOURCE line is kept when it matches a
+    document in this project. Otherwise the story is attributed to the retrieved
+    chunk whose text contains the goal's own words — never to an arbitrary file
+    and never to a name the project does not have.
+    """
     named = (story.source_document or "").strip()
     if named:
         for ev in evidence:
             if ev.document and (ev.document.lower() in named.lower() or named.lower() in ev.document.lower()):
                 return ev.document
+    words = [w for w in story.goal.lower().split() if len(w) > 3]
+    best_doc = ""
+    best_hits = 0
+    for chunk in chunks:
+        text = (chunk.get("text") or "").lower()
+        hits = sum(1 for w in words if w in text)
+        if hits > best_hits:
+            doc = (chunk.get("original_name") or "").strip()
+            if doc:
+                best_doc, best_hits = doc, hits
+    if best_doc:
+        return best_doc
     return evidence[0].document if evidence else ""
 
 
@@ -202,6 +220,7 @@ def generate_user_stories(db: Session, project: Project) -> dict:
     haystack_raw = " ".join(c.get("text", "") for c in chunks)
     grounding = validation.Grounding(
         document_text=haystack_raw,
+        document_names=sorted(allowed),
         structured_text=" ".join(
             [project.name or "", project.objective or "", project.description or ""]
             + [str(f) for f in scope.values() if isinstance(f, (str, list))]
@@ -231,7 +250,7 @@ def generate_user_stories(db: Session, project: Project) -> dict:
             continue
         seen.add(key)
 
-        source_document = _pick_source(raw, evidence, allowed)
+        source_document = _pick_source(raw, chunks, evidence)
         candidate = {
             "id": f"US-{len(stories) + 1:03d}",
             "title": story.title or story.goal,

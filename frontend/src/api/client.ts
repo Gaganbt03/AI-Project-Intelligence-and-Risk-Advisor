@@ -44,8 +44,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers });
+  // The workspace session lives in an HttpOnly cookie; every request must carry
+  // it so the backend can resolve which private workspace the caller owns.
+  const res = await fetch(`${BASE}${path}`, { ...options, headers, credentials: 'include' });
   return handle<T>(res);
+}
+
+/** The anonymous workspace a browser is bound to (see backend /api/session). */
+export interface SessionInfo {
+  session_id: number;
+  project_id: number;
+  status: string;
+  created_at: string;
+  expires_at: string;
 }
 
 /* ------------------------------------------------------------------ *
@@ -343,6 +354,16 @@ export interface ValidationReport {
 }
 
 export const api = {
+  // Anonymous workspace session
+  startSession: () => request<SessionInfo>('/api/session/start', { method: 'POST' }),
+  currentSession: () => request<SessionInfo>('/api/session/current'),
+  sessionHeartbeat: () => request<SessionInfo>('/api/session/heartbeat', { method: 'POST' }),
+  finishSession: () => request<{ ok: boolean; purged: Record<string, number> }>(
+    '/api/session/finish',
+    { method: 'POST' },
+  ),
+  closeSession: () => request<{ ok: boolean }>('/api/session/close', { method: 'POST' }),
+
   // Auth
   authStatus: () => request<{ needs_setup: boolean }>('/api/auth/status'),
   setupAdmin: (payload: { name: string; email: string; password: string }) =>
@@ -393,6 +414,7 @@ export const api = {
       const xhr = new XMLHttpRequest();
       const token = getToken();
       xhr.open('POST', `${BASE}/api/documents/upload?project_id=${projectId}`);
+      xhr.withCredentials = true;
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
@@ -547,6 +569,7 @@ export async function downloadWithAuth(url: string, filename: string) {
   const token = getToken();
   const res = await fetch(`${BASE}${url}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
   });
   if (!res.ok) {
     let msg = `Download failed (${res.status})`;

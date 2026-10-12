@@ -1,4 +1,13 @@
 def test_tasks_crud_and_permissions(client, admin_headers, employee_headers, employee2_headers, project_a, employee, employee2):
+    # A task may only be assigned to a project member; add the workspace actor
+    # to the workspace's own project.
+    from app.database import SessionLocal
+    from app.models import ProjectMember
+
+    with SessionLocal() as db:
+        db.add(ProjectMember(project_id=project_a["id"], user_id=employee["id"]))
+        db.commit()
+
     # Admin creates task for employee
     r = client.post(
         f"/api/tasks?project_id={project_a['id']}",

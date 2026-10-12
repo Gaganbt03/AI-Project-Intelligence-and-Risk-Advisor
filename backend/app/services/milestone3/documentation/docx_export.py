@@ -43,6 +43,14 @@ def _clean(value: str | None) -> str:
     return v if v else NOT_SPECIFIED
 
 
+def _risk_score(entry: dict) -> str:
+    """``12/25 (High)`` when computable, else the explicit placeholder."""
+    score = entry.get("risk_score")
+    if score in (None, "") or score == NOT_SPECIFIED:
+        return NOT_SPECIFIED
+    return f"{score}/{entry.get('risk_score_max', 25)} ({_clean(entry.get('severity_band'))})"
+
+
 def _run(paragraph, text: str, *, italic: bool = False, mono: bool = False):
     """Add a run, styling explicit placeholders and conflict notes distinctly."""
     run = paragraph.add_run(text)
@@ -230,7 +238,7 @@ def _risk_register(doc, data: dict) -> None:
                     e.get("category"),
                     e.get("probability"),
                     e.get("impact"),
-                    f"{e['risk_score']}/25",
+                    _risk_score(e),
                     e.get("severity_band"),
                     e.get("status"),
                 ]
@@ -249,7 +257,7 @@ def _risk_register(doc, data: dict) -> None:
         _kv(doc, "Category", entry.get("category"))
         _kv(doc, "Probability", entry.get("probability"))
         _kv(doc, "Impact", entry.get("impact"))
-        _kv(doc, "Risk score", f"{entry['risk_score']}/25 ({_clean(entry.get('severity_band'))})")
+        _kv(doc, "Risk score", _risk_score(entry))
         _kv(doc, "Severity", entry.get("severity"))
         _kv(doc, "Status", entry.get("status"))
         _kv(doc, "Owner", entry.get("owner"))

@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_accessible_project, get_current_user
+from app.deps import get_accessible_project, get_current_user, get_session_workspace
 from app.models import Project, User
+from app.models_sessions import WorkspaceSession
 from app.schemas import ApiResponse, ProjectCreate, ProjectOut, ProjectUpdate
 from app.services.audit import log_event
 from app.services.projects import (
     ProjectServiceError,
-    list_projects_for_user,
     project_out,
     set_members,
     validate_user_ids,
@@ -18,41 +18,24 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    projects = list_projects_for_user(db, user)
-    return [project_out(db, p) for p in projects]
+def list_projects(session: WorkspaceSession = Depends(get_session_workspace), db: Session = Depends(get_db)):
+    """Return only the caller's own workspace project.
+
+    There is exactly one project per anonymous session, so a workspace never
+    sees another workspace's project.
+    """
+    project = db.query(Project).filter(Project.id == session.project_id).first()
+    return [project_out(db, project)] if project else []
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(payload: ProjectCreate, request: Request, actor: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    try:
-        manager_ids = validate_user_ids(db, [payload.manager_id] if payload.manager_id is not None else [])
-        member_ids = validate_user_ids(db, payload.member_ids)
-    except ProjectServiceError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    if manager_ids and manager_ids[0] not in member_ids:
-        member_ids.append(manager_ids[0])
+    """Project creation is not available.
 
-    project = Project(
-        name=payload.name.strip(),
-        description=payload.description or "",
-        objective=payload.objective or "",
-        manager_id=payload.manager_id,
-        start_date=payload.start_date,
-        expected_end_date=payload.expected_end_date,
-        priority=payload.priority,
-        status=payload.status,
-        created_by=actor.id,
-    )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    if member_ids:
-        set_members(db, project, member_ids, assigned_by=actor.id)
-    log_event(db, user_id=actor.id, user_email=actor.email, action="project_created",
-              resource_type="project", resource_id=str(project.id), project_id=project.id,
-              detail=project.name, request=request)
-    return project_out(db, project)
+    A workspace is created implicitly with its session; users upload documents
+    directly instead of creating projects.
+    """
+    raise HTTPException(status_code=403, detail="Project creation is not available in a temporary workspace.")
 
 
 @router.get("/{project_id}", response_model=ProjectOut)

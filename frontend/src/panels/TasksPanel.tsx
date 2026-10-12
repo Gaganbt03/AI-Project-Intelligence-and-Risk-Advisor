@@ -52,7 +52,7 @@ export function TasksPanel({
     setForm({
       title: '',
       description: '',
-      assigned_to: users[0]?.id ?? null,
+      assigned_to: null,
       due_date: '',
       priority: 'Medium',
       status: 'Pending',
@@ -261,14 +261,16 @@ export function TasksPanel({
             {canManage && (
               <div className="field">
                 <label>Priority</label>
-                <select className="select" value={form.priority || 'Medium'} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                <select className="select" value={form.priority ?? ''} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+                  <option value="">Unspecified</option>
                   {['Low', 'Medium', 'High', 'Critical'].map((p) => <option key={p}>{p}</option>)}
                 </select>
               </div>
             )}
             <div className="field">
               <label>Status</label>
-              <select className="select" value={form.status || 'Pending'} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              <select className="select" value={form.status ?? ''} onChange={(e) => setForm({ ...form, status: e.target.value })}>
+                <option value="">Unspecified</option>
                 {STATUSES.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>

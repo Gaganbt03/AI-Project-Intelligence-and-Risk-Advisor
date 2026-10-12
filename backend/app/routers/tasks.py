@@ -146,9 +146,9 @@ def update_task(task_id: int, payload: dict, user: User = Depends(get_current_us
             value = payload[field]
             if field == "due_date":
                 value = _parse_date(value)
-            elif field == "status" and value not in TASK_STATUSES:
+            elif field == "status" and value != "" and value not in TASK_STATUSES:
                 raise HTTPException(status_code=400, detail="Invalid task status.")
-            elif field == "priority" and value not in TASK_PRIORITIES:
+            elif field == "priority" and value != "" and value not in TASK_PRIORITIES:
                 raise HTTPException(status_code=400, detail="Invalid task priority.")
             elif field == "source_document_id" and value is not None:
                 source = db.query(ProjectDocument).filter(

@@ -8,6 +8,18 @@ from chromadb.config import Settings as ChromaSettings
 from app.config import get_settings
 
 
+def similarity_from_distance(distance: float | None) -> float | None:
+    """Convert a Chroma cosine distance into a cosine similarity.
+
+    The collections use ``hnsw:space=cosine``, so Chroma reports a distance in
+    ``[0, 2]`` (0 = identical, 1 = orthogonal, 2 = opposite). Similarity is the
+    intuitive ``1 - distance`` in ``[-1, 1]`` where higher means closer.
+    """
+    if distance is None:
+        return None
+    return 1.0 - float(distance)
+
+
 class VectorStore:
     """Persistent ChromaDB wrapper.
 
@@ -85,10 +97,12 @@ class VectorStore:
         out = []
         for i, doc_text in enumerate(documents):
             meta = metadatas[i] or {}
+            distance = float(distances[i]) if i < len(distances) else None
             out.append(
                 {
                     "text": doc_text,
-                    "score": float(distances[i]) if i < len(distances) else None,
+                    "distance": distance,
+                    "score": similarity_from_distance(distance),
                     "document_id": meta.get("document_id", ""),
                     "original_name": meta.get("original_name", ""),
                     "page": meta.get("page", ""),
@@ -98,6 +112,7 @@ class VectorStore:
                     "vector_id": ids[i] if i < len(ids) else "",
                 }
             )
+        out.sort(key=lambda c: c["distance"] if c["distance"] is not None else float("inf"))
         return out
 
     def count(self, project_id: int) -> int:

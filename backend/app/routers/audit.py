@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
-from app.models import AuditLog, User
+from app.deps import get_session_workspace
+from app.models import AuditLog
+from app.models_sessions import WorkspaceSession
 
 router = APIRouter(prefix="/admin/audit-logs", tags=["audit"])
 
@@ -14,10 +15,16 @@ def list_audit_logs(
     offset: int = Query(default=0, ge=0),
     action: str | None = None,
     user_id: int | None = None,
-    user: User = Depends(get_current_user),
+    session: WorkspaceSession = Depends(get_session_workspace),
     db: Session = Depends(get_db),
 ):
-    q = db.query(AuditLog)
+    """Audit trail limited to the caller's own workspace.
+
+    The route keeps its legacy path for wire compatibility, but the query is
+    always restricted to the session's project so no workspace can read another
+    workspace's activity.
+    """
+    q = db.query(AuditLog).filter(AuditLog.project_id == session.project_id)
     if action:
         q = q.filter(AuditLog.action == action)
     if user_id:

@@ -52,10 +52,14 @@ def list_documents(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    q = db.query(ProjectDocument)
-    if project_id is not None:
-        get_accessible_project(project_id, user, db)  # existence guard
-        q = q.filter(ProjectDocument.project_id == project_id)
+    # Every listing is confined to the caller's workspace; an omitted
+    # project_id means "the session's project", never "all documents".
+    scoped_project_id = getattr(user, "workspace_project_id", None)
+    if scoped_project_id is None:
+        raise HTTPException(status_code=401, detail="No active workspace session.")
+    if project_id is not None and project_id != scoped_project_id:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    q = db.query(ProjectDocument).filter(ProjectDocument.project_id == scoped_project_id)
     if file_type:
         q = q.filter(ProjectDocument.file_type == file_type.lower())
     if status:

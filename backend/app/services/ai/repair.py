@@ -173,6 +173,18 @@ def parse_and_validate(text: str, model: Type[T]) -> T | None:
     # silently validate into an empty result (e.g. a bare risk object -> {"risks": []}).
     try:
         normalized = _normalize_model(data, model)
+    except Exception as exc:  # noqa: BLE001 - never let normalization crash validation
+        logger.warning("Normalization failed: %s", exc)
+        normalized = None
+
+    # A response that contains none of the expected fields (for example a refusal such as
+    # {"error": "..."}) normalizes to an empty dict. Because every field has a default it would
+    # otherwise validate into an all-defaults result, so reject it rather than invent an answer.
+    if isinstance(data, dict) and not normalized:
+        logger.warning("LLM response contained none of the expected fields for %s.", model.__name__)
+        return None
+
+    try:
         return model.model_validate(normalized)
     except ValidationError as exc:
         logger.warning("Pydantic validation failed (normalized): %s", exc)

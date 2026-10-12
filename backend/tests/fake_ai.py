@@ -36,7 +36,7 @@ EMBEDDING_DIMS = 64
 FAKE_PROVIDER = "fake-test-provider"
 FAKE_MODEL = "fake-test-model"
 
-_EVIDENCE = "Quoted from the uploaded project document."
+_EVIDENCE = "The MQTT gateway may be unreliable under load."
 
 
 class FakeEmbeddingProvider(EmbeddingProvider):
@@ -111,7 +111,7 @@ _RISK_RESULT = {
             "severity": "Medium",
             "probability": "Medium",
             "impact": "Medium",
-            "evidence": _EVIDENCE,
+            "evidence": "Sensor battery life may be insufficient.",
             "source_document": "spec.txt",
             "source_page": None,
             "source_section": None,
@@ -141,7 +141,7 @@ _BLOCKER_RESULT = {
             "description": "Cloud budget approval is outstanding.",
             "severity": "High",
             "owner": "",
-            "evidence": _EVIDENCE,
+            "evidence": "Cloud budget approval is outstanding.",
             "source_document": "spec.txt",
             "source_page": None,
             "source_section": None,
@@ -157,6 +157,7 @@ _ACTION_RESULT = {
             "assigned_person": "Priya",
             "deadline": "2026-10-15",
             "priority": "High",
+            "evidence": "Priya must finalise the sensor datasheet by 2026-10-15.",
             "source_document": "spec.txt",
             "source_page": None,
             "source_section": None,
@@ -166,6 +167,7 @@ _ACTION_RESULT = {
             "assigned_person": "",
             "deadline": None,
             "priority": "Medium",
+            "evidence": "sensor gateway firmware",
             "source_document": "spec.txt",
             "source_page": None,
             "source_section": None,

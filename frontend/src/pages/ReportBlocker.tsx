@@ -1,20 +1,18 @@
-import { useState } from 'react';
 import { CircleSlash } from 'lucide-react';
 import { AppShell } from '../layout/AppShell';
 import { EmptyState } from '../components/EmptyState';
-import ProjectSelector from '../components/ProjectSelector';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 import { BlockersPanel } from '../panels/BlockersPanel';
 
 export default function ReportBlocker() {
-  const [projectId, setProjectId] = useState<number | null>(null);
+  const { projectId } = useWorkspace();
 
   return (
     <AppShell title="Report Blocker" crumb="Issues · Report">
-      <ProjectSelector projectId={projectId} onChange={setProjectId} />
       {projectId ? (
-        <BlockersPanel projectId={projectId} employees={[]} />
+        <BlockersPanel projectId={projectId} />
       ) : (
-        <EmptyState icon={<CircleSlash size={26} />} title="Select a project" description="Choose the project you are blocked on to file a quick report." />
+        <EmptyState icon={<CircleSlash size={26} />} title="Preparing workspace" description="Your private workspace is loading." />
       )}
     </AppShell>
   );

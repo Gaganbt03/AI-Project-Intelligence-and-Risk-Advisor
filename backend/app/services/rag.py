@@ -20,12 +20,34 @@ def format_citation(item: dict) -> str:
     return " — ".join(parts)
 
 
-def retrieve_chunks(project_id: int, query: str, top_k: int | None = None) -> list[dict]:
+def is_relevant(chunk: dict, *, min_similarity: float | None = None) -> bool:
+    """Whether a retrieved chunk is relevant enough to be used as evidence.
+
+    ``score`` is a cosine similarity (see ``similarity_from_distance``). The
+    threshold comes from ``RAG_MIN_SIMILARITY`` unless an explicit value is
+    given. Chunks with no score are kept, so a store that cannot report a
+    distance never causes evidence to be silently discarded.
+    """
+    threshold = get_settings().RAG_MIN_SIMILARITY if min_similarity is None else min_similarity
+    score = chunk.get("score")
+    if score is None:
+        return True
+    return float(score) >= threshold
+
+
+def retrieve_chunks(
+    project_id: int,
+    query: str,
+    top_k: int | None = None,
+    *,
+    min_similarity: float | None = None,
+) -> list[dict]:
     settings = get_settings()
     provider = get_embedding_provider()
     embedding = provider.embed_one(query)
     vs = get_vector_store()
-    return vs.query(project_id, embedding, top_k=top_k or settings.AI_MAX_CHUNKS)
+    chunks = vs.query(project_id, embedding, top_k=top_k or settings.AI_MAX_CHUNKS)
+    return [c for c in chunks if is_relevant(c, min_similarity=min_similarity)]
 
 
 def build_context(chunks: list[dict]) -> str:

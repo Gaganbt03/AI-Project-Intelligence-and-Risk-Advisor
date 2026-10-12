@@ -104,6 +104,33 @@ class Settings(BaseSettings):
     AI_MAX_CHUNKS: int = 6  # chunks retrieved per RAG query
     AI_REQUEST_TIMEOUT: int = 180
 
+    # Retrieval relevance. A retrieved chunk is only treated as evidence when its
+    # cosine similarity (1 - cosine distance) reaches this floor; anything less
+    # relevant is dropped so the model is never grounded on unrelated text.
+    # 0.0 keeps anything not anti-correlated, 1.0 keeps only near-identical text,
+    # and -1.0 disables the filter entirely (tests use -1.0; production must not).
+    #
+    # The default was measured against the configured model ("nomic-embed-text")
+    # by embedding this project's own requirement/meeting text and comparing
+    # on-topic retrieval queries with off-topic ones. With that model, unrelated
+    # text still scores ~0.38-0.48 (its similarity baseline is high), while
+    # on-topic queries reach ~0.45-0.80. 0.4 sits just above the unrelated
+    # baseline: it removes the least-related chunks without starving retrieval.
+    # Re-measure and tune whenever EMBEDDING_MODEL or CHUNK_SIZE changes.
+    RAG_MIN_SIMILARITY: float = 0.4
+
+    # Anonymous temporary workspace sessions
+    # Each browser gets its own isolated workspace (a private project) delivered
+    # by an opaque, server-stored session token in an HttpOnly cookie. The TTL is
+    # an idle timeout: it is refreshed on activity and, together with the
+    # background sweeper, is the server-side fallback for missed close signals,
+    # crashes and abandoned sessions.
+    WORKSPACE_SESSION_TTL_MINUTES: int = 60
+    WORKSPACE_COOKIE_NAME: str = "apir_ws"
+    WORKSPACE_COOKIE_SECURE: bool = False  # set True when served over HTTPS
+    WORKSPACE_FINISH_GRACE_SECONDS: int = 10  # grace before a browser-close purge
+    WORKSPACE_SWEEP_INTERVAL_SECONDS: int = 15  # background purge/expiry cadence
+
     # First administrator (environment-based bootstrap; never inserted by us)
     ADMIN_EMAIL: str = ""
     ADMIN_PASSWORD: str = ""

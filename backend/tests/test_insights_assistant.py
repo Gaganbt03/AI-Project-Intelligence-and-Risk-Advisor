@@ -31,8 +31,8 @@ def test_insights_listing_and_health(client, admin_headers, employee_headers, pr
     assert client.get(f"/api/projects/{project_a['id']}/insights", headers=employee_headers).status_code == 200
 
 
-def test_employee_cannot_read_insights_of_unassigned(client, employee_headers):
-    # project created on the fly with no members
+def test_insights_of_another_project_are_not_reachable(client, employee_headers):
+    # A project that belongs to no workspace is invisible to this session.
     from app.database import SessionLocal
     from app.models import Project
     with SessionLocal() as db:
@@ -42,7 +42,7 @@ def test_employee_cannot_read_insights_of_unassigned(client, employee_headers):
         db.refresh(p)
         pid = p.id
     r = client.get(f"/api/projects/{pid}/insights", headers=employee_headers)
-    assert r.status_code == 200
+    assert r.status_code == 404
 
 
 def test_assistant_answers_within_project(client, admin_headers, project_a, employee_headers):

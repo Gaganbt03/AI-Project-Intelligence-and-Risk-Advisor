@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FileText, Download, Eye, RefreshCw, Trash2, Search, FilterX } from 'lucide-react';
 import { api, downloadWithAuth } from '../api/client';
 import { AppShell } from '../layout/AppShell';
@@ -6,32 +6,19 @@ import { EmptyState, PageLoader } from '../components/EmptyState';
 import { Badge, statusTone } from '../components/Badge';
 import { Modal } from '../components/Modal';
 import { useToast } from '../ui/ToastContext';
-import { useAuth } from '../auth/AuthContext';
 import { fmtBytes, timeAgo, fmtDate } from '../utils/format';
 
 export default function Documents() {
-  const { user } = useAuth();
   const isAdmin = false;
   const [docs, setDocs] = useState<any[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<any>(null);
-  const [filters, setFilters] = useState<any>({ project_id: '', file_type: '', status: '' });
+  const [filters, setFilters] = useState<any>({ file_type: '', status: '' });
   const toast = useToast();
-
-  const loadProjects = useCallback(async () => {
-    try {
-      const p = await api.listProjects();
-      setProjects(p);
-    } catch {
-      setProjects([]);
-    }
-  }, []);
 
   const load = useCallback(async () => {
     try {
       const params: Record<string, any> = {};
-      if (filters.project_id) params.project_id = filters.project_id;
       if (filters.file_type) params.file_type = filters.file_type;
       if (filters.status) params.status = filters.status;
       setDocs(await api.listDocuments(params));
@@ -42,17 +29,7 @@ export default function Documents() {
     }
   }, [filters, toast]);
 
-  useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
-
   useEffect(() => { load(); }, [load]);
-
-  const projectName = useMemo(() => {
-    const m: Record<string, string> = {};
-    projects.forEach((p) => { m[p.id] = p.name; });
-    return m;
-  }, [projects]);
 
   const doDelete = async (d: any) => {
     if (!window.confirm(`Delete "${d.original_name}"? This also removes its vectors.`)) return;
@@ -83,22 +60,15 @@ export default function Documents() {
     }
   };
 
-  const clearFilters = () => setFilters({ project_id: '', file_type: '', status: '' });
+  const clearFilters = () => setFilters({ file_type: '', status: '' });
 
   if (loading) return <AppShell title="Documents" crumb="Library"><PageLoader label="Loading documents…" /></AppShell>;
 
-  const hasFilter = filters.project_id || filters.file_type || filters.status;
+  const hasFilter = filters.file_type || filters.status;
 
   return (
     <AppShell title="Documents" crumb="Library · Files">
       <div className="filters-bar">
-        <div className="field">
-          <label>Project</label>
-          <select className="select" value={filters.project_id} onChange={(e) => setFilters({ ...filters, project_id: e.target.value })}>
-            <option value="">All projects</option>
-            {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
         <div className="field">
           <label>File type</label>
           <select className="select" value={filters.file_type} onChange={(e) => setFilters({ ...filters, file_type: e.target.value })}>
@@ -129,7 +99,7 @@ export default function Documents() {
           <table className="data">
             <thead>
               <tr>
-                <th>Document</th><th>Project</th><th>Type</th><th>Uploaded By</th><th>Date</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th>
+                <th>Document</th><th>Type</th><th>Uploaded By</th><th>Date</th><th>Status</th><th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -144,7 +114,6 @@ export default function Documents() {
                       </div>
                     </div>
                   </td>
-                  <td className="muted small">{projectName[d.project_id] || `#${d.project_id}`}</td>
                   <td><Badge tone="neutral" plain>{d.file_type?.toUpperCase()}</Badge></td>
                   <td className="muted small">{d.uploader_name || '—'}</td>
                   <td className="muted small" style={{ whiteSpace: 'nowrap' }} title={fmtDate(d.uploaded_at)}>{timeAgo(d.uploaded_at)}</td>
